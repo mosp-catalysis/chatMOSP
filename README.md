@@ -36,28 +36,22 @@ cd mosp-for-chatMOSP
 bash install.sh
 ```
 
-See the [mosp-for-chatMOSP repository](https://github.com/mosp-catalysis/mosp-for-chatMOSP) for detailed instructions.
-
 ### Step 2: Install chatMOSP Skills
 
 ```bash
-# Clone this repository
 git clone https://github.com/mosp-catalysis/chatMOSP.git
-
-# Copy skills to your OpenClaw workspace
 cp -r chatMOSP/skills/* ~/.openclaw/workspace/skills/
 ```
 
 Or use the install script:
 
 ```bash
-cd chatMOSP
-bash install.sh
+cd chatMOSP && bash install.sh
 ```
 
 ### Step 3: Verify
 
-Restart OpenClaw or wait for skills to auto-load. You should be able to give natural-language commands like:
+Restart OpenClaw. You should be able to give natural-language commands like:
 
 - "生成一个Pt55团簇" / "Generate a Pt55 cluster"
 - "运行CO氧化KMC模拟" / "Run CO oxidation KMC simulation"
@@ -70,23 +64,6 @@ User input → chatmosp-input-coordinator (task recognition)
     ├── KMC task → chatmosp-parameter-builder → chatmosp-kmc-simulator → visualization
     └── Query task → chatmosp-parameter-builder (display parameters)
 ```
-
-### MSR Example
-
-1. User: "生成Pd团簇在CO氧化环境下"
-2. Input-coordinator identifies MSR task
-3. Parameter-builder finds `Pd-COoxidation.json` in MOSP_database, auto-calculates gas entropy
-4. Parameters displayed for user confirmation
-5. MSR generates equilibrium structure
-6. Visualization (structure.png + rotation.gif) presented to user
-
-### KMC Example
-
-1. User: "Run KMC simulation for Pt CO oxidation, 20M steps"
-2. Input-coordinator identifies KMC task
-3. Parameter-builder loads parameters, user confirms
-4. KMC simulation runs (20M steps ≈ 12 hours)
-5. Results plotted: coverage vs time, TOF vs steps
 
 ## Key Features
 
@@ -101,7 +78,7 @@ User input → chatmosp-input-coordinator (task recognition)
 ```
 chatMOSP/
 ├── README.md                       # This file
-├── LICENSE                         # MIT License
+├── LICENSE                         # GNU GPL v3
 ├── MOSP-SOFTWARE-REQUIREMENT.md    # MOSP engine dependency details
 ├── install.sh                      # Installation script
 ├── .gitignore
@@ -116,11 +93,21 @@ chatMOSP/
     └── chatmosp-parameter-builder/
 ```
 
+## Citation
+
+If you use this software in academic work, please cite:
+
+Ying L, Zhu B,* Gao Y,* "MOSP: A user-interface package for simulating metal nanoparticle's structure and reactivity under operando conditions." *J. Chem. Phys.* **2024**, *161*, 114702. [DOI: 10.1063/5.0226023](https://doi.org/10.1063/5.0226023)
+
 ## License
 
-This project is licensed under the MIT License — see the [LICENSE](LICENSE) file for details.
+This project is licensed under the **GNU General Public License v3.0** — see the [LICENSE](LICENSE) file for details.
 
-The MOSP computation engine has a separate academic license. See the [mosp-for-chatMOSP](https://github.com/mosp-catalysis/mosp-for-chatMOSP) repository for details.
+Both chatMOSP skills and the MOSP computation engine use GPL v3, consistent with the original [MOSP](https://github.com/MOSP-catalysis/MOSP) license.
+
+## Contact
+
+**Yi Gao's Group** — [https://www.x-mol.com/groups/gao_yi](https://www.x-mol.com/groups/gao_yi)
 
 ## Related Repository
 

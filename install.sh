@@ -1,50 +1,46 @@
 #!/bin/bash
+# chatMOSP — Installation Script
+# License: GNU GPL v3
 
-# chatMOSP Skills Installation Script
-# Version: 2.0.0 (Document-driven architecture)
+set -e
+
+WORKSPACE="${HOME}/.openclaw/workspace"
+SKILLS_DIR="${WORKSPACE}/skills"
 
 echo "========================================"
-echo "chatMOSP Skills Installer"
+echo "chatMOSP — Skill Installation"
 echo "========================================"
 
-# Check OpenClaw workspace
-WORKSPACE_DIR="$HOME/.openclaw/workspace"
-SKILLS_DIR="$WORKSPACE_DIR/skills"
-
-if [ ! -d "$WORKSPACE_DIR" ]; then
-    echo "❌ Error: OpenClaw workspace not found at $WORKSPACE_DIR"
-    echo "Please install OpenClaw first."
-    exit 1
-fi
-
-# Create skills directory if needed
+# Create skills directory
 mkdir -p "$SKILLS_DIR"
 
 # Copy skill documents
-echo "📁 Copying skill documents..."
-cp -r skills/chatmosp-* "$SKILLS_DIR/"
+echo "Copying skill documents..."
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
-# Verify installation
-COUNT=$(find "$SKILLS_DIR" -maxdepth 1 -name "chatmosp-*" -type d | wc -l)
+for skill_dir in "$SCRIPT_DIR"/skills/chatmosp-*/; do
+    skill_name=$(basename "$skill_dir")
+    echo "  $skill_name"
+    cp -r "$skill_dir" "$SKILLS_DIR/"
+done
 
-if [ "$COUNT" -ge 6 ]; then
-    echo "✅ Installation successful! $COUNT chatMOSP skills installed."
-    echo ""
-    echo "Installed skills:"
-    echo "  1. chatmosp-input-coordinator   - Task recognition and routing"
-    echo "  2. chatmosp-parameter-builder    - Parameter construction with auto-calculation"
-    echo "  3. chatmosp-msr-generator        - Nanoparticle structure generation (MSR)"
-    echo "  4. chatmosp-kmc-simulator        - Kinetic Monte Carlo simulation (KMC)"
-    echo "  5. chatmosp-literature-search     - Literature parameter extraction"
-    echo "  6. chatmosp-file-organizer        - File management and visualization"
-    echo ""
-    echo "Next steps:"
-    echo "  1. Make sure MOSP for chatMOSP is installed:"
-    echo "     https://github.com/mosp-catalysis/mosp-for-chatMOSP"
-    echo "  2. Restart OpenClaw or wait for skills to auto-load"
-else
-    echo "⚠️  Warning: Only $COUNT skills found. Expected 6."
-    echo "Please check $SKILLS_DIR"
-fi
-
+echo ""
 echo "========================================"
+echo "Installation complete!"
+echo "========================================"
+echo ""
+echo "Installed skills:"
+ls "$SKILLS_DIR"/chatmosp-*/SKILL.md 2>/dev/null | while read f; do
+    echo "  ✅ $(dirname "$f" | xargs basename)"
+done
+echo ""
+echo "Next steps:"
+echo "  1. Install MOSP engine: https://github.com/mosp-catalysis/mosp-for-chatMOSP"
+echo "  2. Restart OpenClaw"
+echo "  3. Try: 'Generate a Pt nanoparticle under CO oxidation'"
+echo ""
+echo "License: GNU GPL v3"
+echo "Citation: Ying L, Zhu B,* Gao Y,* J. Chem. Phys. 2024, 161, 114702"
+echo ""
+
+exit 0

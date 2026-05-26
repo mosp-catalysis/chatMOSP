@@ -8,12 +8,12 @@ chatMOSP **does not include** the MOSP computation engine. It only provides conv
 
 - **Repository**: [mosp-for-chatMOSP](https://github.com/mosp-catalysis/mosp-for-chatMOSP)
 - **Function**: Core computation engine (MSR structure generation + KMC kinetic simulation)
-- **Relationship**: chatMOSP is the "conversational interface"; MOSP is the "computation engine"
+- **License**: GNU GPL v3 — same as the original [MOSP](https://github.com/MOSP-catalysis/MOSP)
 
 ### chatMOSP (This Repository)
 
 - **Function**: Conversational skill documents for controlling MOSP via natural language
-- **Relationship**: The "brain" that understands user intent and orchestrates MOSP execution
+- **License**: GNU GPL v3
 
 ## Installation Order
 
@@ -66,7 +66,10 @@ Specific execution paths:
 ### Q: Python dependency errors
 **Fix**: `pip3 install -r mosp-for-chatMOSP/requirements.txt`
 
-## License Notes
+## License
 
-- **MOSP engine**: Academic non-commercial license — see `LICENSE.txt` in the MOSP repository
-- **chatMOSP skills**: MIT License — see [LICENSE](LICENSE) in this repository
+Both chatMOSP and MOSP for chatMOSP are licensed under **GNU GPL v3**, consistent with the original MOSP software by Yi Gao's Group.
+
+## Contact
+
+**Yi Gao's Group** — [https://www.x-mol.com/groups/gao_yi](https://www.x-mol.com/groups/gao_yi)
