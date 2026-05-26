@@ -55,6 +55,50 @@ Input (metal + gas) → Journal Search → Article Retrieval → Parameter Extra
 - Layer 2: Open access journals (Nature Communications, Science Advances, PNAS, etc.) / 第2层：开放获取期刊（Nature Communications, Science Advances, PNAS等）
 - Layer 3: Preprint platforms (arXiv, ChemRxiv, etc.) / 第3层：预印本平台（arXiv, ChemRxiv等）
 
+#### Layer 1: Top Journals (Priority, but may be inaccessible) / 第1层：顶刊（优先但可能无法获取）
+
+**Journal List / 期刊列表**：
+- Science (science.org)
+- Nature (nature.com)
+- JACS (Journal of the American Chemical Society)
+- Angewandte Chemie
+- PRL (Physical Review Letters)
+- JCP (Journal of Chemical Physics)
+
+**Access Strategy / 获取策略**：
+- Check for institutional access (via DOI resolution) / 检查是否有机构订阅（通过DOI解析）
+- If API limit or access restricted → skip to Layer 2 / 遇到API限制或访问受限 → 直接跳到第2层
+- If inaccessible → skip, proceed to Layer 2 / 无法获取 → 跳过，进入第2层
+- If accessible → retrieve abstract → main text → SI / 可以获取 → 检索摘要 → 正文 → SI
+
+**Important / 重要**：Do not waste time on inaccessible resources; prioritize open access. / 不要浪费时间在无法访问的资源上，优先搜索开放获取资源。
+
+#### Layer 2: Fully Open Access Journals (Recommended) / 第2层：完全开放获取期刊（推荐）
+
+**Journal List / 期刊列表**：
+- Nature Communications (nature.com/ncomms)
+- Science Advances (science.org/journal/sciadv)
+- PNAS (pnas.org)
+- ACS Central Science
+- Chemical Science (RSC)
+
+**Advantages / 优势**：
+- Completely free, no subscription required / 完全免费，无需订阅
+- High quality, credible parameters / 质量高，参数可信
+- SI typically contains complete data / SI通常包含完整数据
+
+#### Layer 3: Preprint Platforms (Last Resort) / 第3层：预印本平台（最后选择）
+
+**Platform List / 平台列表**：
+- arXiv (arxiv.org)
+- ChemRxiv (chemrxiv.org)
+- bioRxiv (biorxiv.org)
+
+**Notes / 注意事项**：
+- Not peer-reviewed / 未经过同行评审
+- Parameters may be inaccurate / 参数可能不准确
+- User confirmation required / 需要用户确认
+
 ### Step 2: Detailed Literature Retrieval Process / 步骤2：详细文献检索流程
 
 #### 2.1 Journal Selection and Search / 2.1 期刊选择与检索
@@ -235,9 +279,37 @@ Please select / 请选择：
 
 ### Step 3: Parameter Extraction / 步骤3：参数提取
 
-- Extract surface energy / 提取表面能
-- Extract adsorption energy / 提取吸附能
-- Extract interaction matrix / 提取相互作用矩阵
+#### Step 3.1: Download SI File / 步骤3.1：下载SI文件
+
+Use browser tool to access the article page and download the SI file. / 使用browser工具访问文章页面，下载SI文件。
+
+#### Step 3.2: Convert PDF to Text / 步骤3.2：转换PDF为文本
+
+```bash
+pdftotext si_{author}_{year}.pdf si_{author}_{year}.txt
+```
+
+#### Step 3.3: Search for Parameter Tables / 步骤3.3：搜索参数表格
+
+**Search Keywords / 搜索关键词**：
+- Table S, Supplementary Table
+- adsorption energy, E_ads, binding energy
+- surface energy, γ, surface tension
+- interaction parameter, interaction matrix
+
+#### Step 3.4: Read Parameter Tables / 步骤3.4：读取参数表格
+
+Use the read tool to read the text file and locate parameter tables. / 使用read工具读取文本文件，找到参数表格。
+
+#### Step 3.5: Extract Parameters / 步骤3.5：提取参数
+
+Extract numerical values from tables; note unit conversion. / 从表格中提取参数数值，注意单位转换。
+
+#### Step 3.6: Validate Parameters / 步骤3.6：验证参数
+
+- Check if parameters are within reasonable ranges / 检查参数是否在合理范围内
+- Check if parameters follow physical laws / 检查参数是否符合物理规律
+- Check if parameters are consistent / 检查参数是否一致
 
 ### Step 4: Parameter Validation / 步骤4：参数验证
 
@@ -360,6 +432,8 @@ Please select / 请选择：
 | Parameter source | 1 point | DOI, article title, author information / DOI、文献标题、作者信息 |
 | Parameter reasonability | 1 point | Parameters within reasonable range, physically plausible / 参数在合理范围内，符合物理规律 |
 
+**⚠️ Note: Gas entropy is NOT included in this scoring.** Literature search does NOT return gas entropy values (Gas_S/S_gas). Regardless of completeness score, after returning parameters, `chatmosp-parameter-builder` skill MUST automatically calculate gas entropy based on temperature. / 注意：气体熵不在此评分范围内。文献搜索不返回气体熵值。无论完整性评分多少，返回参数后，`chatmosp-parameter-builder`技能必须根据温度自动计算气体熵值。
+
 ### Completeness Levels / 完整性等级
 
 - **9-10 points**: Complete, ready to use / 完整，可直接使用
@@ -444,6 +518,28 @@ Please select / 请选择：
 - **web-tools-guide**: Web tools usage guide / 网络工具使用指南
 - **chatmosp-parameter-builder**: Parameter builder skill / 参数构建器技能
 - **MOSP_database**: Parameter database / 参数库
+
+---
+
+## 📋 Practical Example (Simplified) / 📋 实际操作示例（精简版）
+
+### Example: Searching for Pd-CO-O System Parameters / 示例：搜索Pd-CO-O体系参数
+
+**User Input / 用户输入**："show me the Pd cluster under atmosphere of CO and O2"
+
+1. **Extract requirements / 提取需求**：Metal=Pd, Gases=[CO, O₂], Need: surface energy, E_ads, w-matrix
+2. **Check MOSP_database / 检查MOSP_database**：No matching example file / 未找到匹配的example文件
+3. **Launch literature search / 启动文献搜索**：Platform=Nature Communications (open access), Keywords=`"Pd" AND "CO oxidation" AND "adsorption energy"`, Tool=browser
+4. **Find article / 找到文章**：Relevant article found, DOI confirmed / 找到相关文章，DOI确认
+5. **Download SI / 下载SI**：Save to `mosp-for-chatMOSP/literature/` / 保存到literature目录
+6. **Extract parameters / 提取参数**：Use pdftotext → search for "Supplementary Table" → extract E_ads, w values / 使用pdftotext→搜索“Supplementary Table”→提取吸附能和相互作用参数
+7. **Validate / 验证**：Completeness score calculated / 计算完整性评分
+8. **Present results / 展示结果**：Display found parameters, note missing ones (e.g., surface energy), suggest supplements / 展示找到的参数，标注缺失项（如表面能），建议补充方案
+
+**Key points / 关键点**：
+- Always start with open access journals / 始终从开放获取期刊开始
+- Gas entropy is NOT returned by literature search; parameter-builder must calculate it / 文献搜索不返回气体熵，parameter-builder必须计算
+- Interaction parameters from literature may be KMC format (per-bond); convert to MSR format (per-atom) if needed / 文献中的相互作用参数可能是KMC格式，需转换为MSR格式
 
 ---
 

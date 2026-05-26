@@ -53,7 +53,7 @@
 - ✅ **智能参数提取**：增强金属、温度、气体、步数、尺寸等参数提取
 
 ### 技能定位
-输入协调器是ChatMOSP系统的智能入口，负责：
+输入协调器是chatMOSP系统的智能入口，负责：
 1. **多语言意图理解**：解析中英文混合的自然语言输入
 2. **智能任务识别**：准确识别MSR/KMC/查询参数任务类型
 3. **细粒度参数提取**：提取金属、温度、气体、分压、步数、尺寸等参数
@@ -358,10 +358,8 @@ interaction:
 
 ```
 chatmosp-input-coordinator/
-├── SKILL.md                    # 技能说明文档（中文版）
-├── SKILL_en.md                 # 技能说明文档（英文版）
-├── config.json                 # 配置文件
-└── requirements.txt            # 依赖包
+├── SKILL.md           # 技能说明文档（中文版）
+└── SKILL_en.md        # 技能说明文档（英文版）
 ```
 
 ## 📁 文件与可视化
@@ -386,7 +384,7 @@ python3 utils/paint.py OUTPUT/{task_name}/{task_name}_cluster.xyz \
 **重要说明**：paint.py每次调用只能生成一种类型的图像（静态图片或动图），需要分两步分别生成。
 
 ### KMC任务系统要求
-KMC计算需要Wine环境运行Windows版`mine.exe`引擎：
+KMC计算需要Wine环境运行Windows版`main.exe`引擎：
 ```bash
 # 检查Wine是否已安装
 which wine

@@ -444,7 +444,7 @@ with open('KMC任务目录/input.json') as f:
 **核心职责**: 参数查询、智能补全、气体熵计算、验证生成
 
 ### 技能定位
-参数构建器是ChatMOSP系统的参数智能管理中心,负责:
+参数构建器是chatMOSP系统的参数智能管理中心,负责:
 1. **智能参数补全**:基于MOSP_database搜索+温度替换+气体熵计算的完整参数生成
 2. **多源参数查询**:从MOSP_database、user_MOSP_database、历史、推荐源查询计算参数
 3. **交互式参数构建**:支持用户调整温度、压力、气体等参数
@@ -574,16 +574,29 @@ with open('KMC任务目录/input.json') as f:
 
 根据`chatmosp-literature-search`返回的参数完整性评分,决定下一步操作:
 
+**⚠️ 重要：文献搜索后必须计算气体熵！**
+
+文献搜索返回的参数**不包含**气体熵值(Gas_S/S_gas)。无论完整性评分多少，在组装input.json之前，必须根据用户指定的温度自动计算气体熵值：
+
+```
+文献搜索返回参数 → 提取E_ads, w, gamma → ✅ 根据温度计算Gas_S/S_gas → 组装完整input.json
+```
+
+计算公式: `S(eV/K) = (a × T^b) / 96485`
+
 **完整性评分 9-10分**:
 - 参数完整,可直接使用
+- ✅ 仍需计算气体熵值
 - 展示参数给用户确认
 
 **完整性评分 7-8分**:
 - 参数较完整,可以使用
+- ✅ 仍需计算气体熵值
 - 需要用户确认缺失的参数
 
 **完整性评分 5-6分**:
 - 参数部分完整,需要补充
+- ✅ 仍需计算气体熵值
 - 向用户说明缺失的参数,建议补充方案
 
 **完整性评分 3-4分**:
@@ -972,11 +985,8 @@ output:
 
 ```
 chatmosp-parameter-builder/
-├── SKILL.md                    # 技能说明文档（中文版）
-├── SKILL_en.md                 # 技能说明文档（英文版）
-├── config.json                 # 配置文件
-├── config_en.json              # 配置文件（英文版）
-└── requirements.txt            # 依赖包
+├── SKILL.md           # 技能说明文档（中文版）
+└── SKILL_en.md        # 技能说明文档（英文版）
 ```
 
 ## 🌐 语言一致性
@@ -984,51 +994,21 @@ chatmosp-parameter-builder/
 ### 响应语言策略
 1. **自动语言检测**: 根据用户输入自动检测语言
 2. **一致性响应**: 英文输入得到英文回复,中文输入得到中文回复
-3. **双语支持**: 参数展示器(ParameterPresenter)支持中英文切换
-4. **配置加载**: 自动加载对应语言的配置文件(config.json / config_en.json)
-
-### 实现原理
-- **输入协调器** 检测用户语言
-- **参数展示器** 根据语言生成相应格式的输出
-- **气体熵计算** 语言无关,确保科学计算准确性
-- **文件保存** 使用通用JSON格式,语言信息作为元数据
+3. **双语支持**: 根据用户语言选择SKILL.md或SKILL_en.md
 
 ### 示例
-```python
-# 英文输入 -> 英文输出
-user_input = "Show me the structure of platinum clusters"
-language = "en_US"  # 自动检测
-response = parameter_presenter.present_parameters_for_confirmation(
-    parameters, source, language
-)
-# 输出英文确认信息
+- 英文输入 "Show me the Pd structure" → 英文回复,使用SKILL_en.md
+- 中文输入 "生成Pd团簇" → 中文回复,使用SKILL.md
 
-# 中文输入 -> 中文输出
-user_input = "显示铂团簇的结构"
-language = "zh_CN"  # 自动检测
-response = parameter_presenter.present_parameters_for_confirmation(
-    parameters, source, language
-)
-# 输出中文确认信息
-```
-
+### 关键原则
+- 气体熵计算与语言无关,确保科学计算准确性
+- 文件保存使用通用JSON格式
 ## 🔄 更新说明
 
-**版本 2.0.0 (2026-04-27) - 重大更新**:
-1. ✅ **智能参数补全**:基于MOSP_database搜索的完整参数生成流程
-2. ✅ **气体熵自动计算**:支持7种气体的温度依赖熵值计算
-3. ✅ **MOSP_database智能搜索**:金属+气体匹配,最佳example选择
-4. ✅ **温度自动替换**:保持example默认参数,仅替换用户指定参数
-5. ✅ **完整input.json生成**:输出可直接用于MSR/KMC计算的参数文件
-6. ✅ **支持新命名格式**:识别`Pd_CO9_O18_473K_100000Pa_R50`等格式
-
-**核心算法优化**:
-- **相似度计算**:改进的金属+气体匹配算法
-- **温度处理**:支持°C到K的自动转换
-- **气体推断**:从"CO氧化环境"推断需要CO和O2气体
-- **错误恢复**:找不到匹配example时的降级策略
-
-**向后兼容性**:
-- 旧版参数查询接口保持兼容
-- 新增`action: "complete_parameters"`用于智能补全
-- 气体熵计算可配置启用/禁用
+**版本 2.0 (2026-05) - 文档驱动架构**:
+- 技能文档（SKILL.md/SKILL_en.md）作为AI操作指南，不再使用Python代码
+- 智能参数补全：基于MOSP_database搜索的完整参数生成流程
+- 气体熵自动计算：支持7种气体的温度依赖熵值计算
+- 相互作用参数转换：自动检测并转换MSR/KMC格式
+- 文献搜索集成：MOSP_database无匹配时自动搜索文献
+- 用户确认流程：5选项交互式参数确认

@@ -494,6 +494,8 @@ pdftotext si_{author}_{year}.pdf si_{author}_{year}.txt
 | 参数来源 | 1分 | DOI、文献标题、作者信息 |
 | 参数合理性 | 1分 | 参数在合理范围内，符合物理规律 |
 
+**⚠️ 注意：气体熵不在此评分范围内**。文献搜索不返回气体熵值(Gas_S/S_gas)。无论完整性评分多少，返回参数后，`chatmosp-parameter-builder`技能必须根据温度自动计算气体熵值。
+
 ### 完整性等级
 
 - **9-10分**：完整，可直接使用
@@ -559,90 +561,25 @@ pdftotext si_{author}_{year}.pdf si_{author}_{year}.txt
 
 ---
 
-## 📋 实际操作示例
+## 📋 实际操作示例（精简版）
 
 ### 示例：搜索Pd-CO-O体系参数
 
-**用户输入**：
-```
-"show me the Pd cluster under atmosphere of CO and O2"
-```
+**用户输入**："show me the Pd cluster under atmosphere of CO and O2"
 
-**步骤1：提取参数需求**
-- 金属：Pd
-- 气体：CO, O2
-- 需要参数：表面能、吸附能、相互作用矩阵
+1. **提取需求**：金属=Pd, 气体=[CO, O₂], 需要：表面能、E_ads、w矩阵
+2. **检查MOSP_database**：未找到匹配的example文件
+3. **启动文献搜索**：平台=Nature Communications（开放获取），关键词=`"Pd" AND "CO oxidation" AND "adsorption energy"`，工具=browser
+4. **找到文章**：找到相关文章，DOI确认
+5. **下载SI**：保存到`mosp-for-chatMOSP/literature/`
+6. **提取参数**：使用pdftotext→搜索"Supplementary Table"→提取E_ads、w值
+7. **验证**：计算完整性评分，标注缺失项
+8. **展示结果**：展示找到的参数，标注缺失项（如表面能），建议补充方案
 
-**步骤2：检查MOSP_database**
-```
-检查：mosp-for-chatMOSP/MOSP_database/
-搜索条件：metal=Pd, gases=[CO, O2]
-结果：未找到匹配的example文件
-```
-
-**步骤3：启动文献搜索**
-```
-搜索平台：Nature Communications（开放获取）
-搜索关键词："Pd" AND "CO oxidation" AND "adsorption energy"
-搜索工具：openclaw_browser
-```
-
-**步骤4：找到文章**
-```
-找到文章："Structural changes in noble metal nanoparticles during CO oxidation"
-DOI: 10.1038/s41467-020-16027-9
-相关性：✅ 匹配（Pd, CO, O2, 表面催化）
-```
-
-**步骤5：下载SI**
-```
-SI文件：si_chee_2020.pdf (13MB)
-保存位置：mosp-for-chatMOSP/literature/Pd_CO_oxidation/
-```
-
-**步骤6：提取参数**
-```
-从Supplementary Table 1提取：
-- Pd吸附能（各晶面）
-- Pd相互作用参数（各晶面）
-- 缺少：表面能数据
-```
-
-**步骤7：参数验证**
-```
-完整性评分：7分（缺少表面能）
-处理：搜索其他文献补充表面能
-```
-
-**步骤8：展示结果**
-```
-📊 参数已找到，来源：Nature Communications, 2020
-DOI: 10.1038/s41467-020-16027-9
-
-【表面晶面参数】
-- ❌ 表面能：未找到，需要补充
-
-【表面吸附参数】（从文献提取）
-111 晶面：
-  - CO 吸附能：E_ads = -1.734 eV
-  - O₂ 吸附能：E_ads = -1.214 eV
-100 晶面：
-  - CO 吸附能：E_ads = -1.666 eV
-  - O₂ 吸附能：E_ads = -1.064 eV
-110 晶面：
-  - CO 吸附能：E_ads = -1.727 eV
-  - O₂ 吸附能：E_ads = -0.960 eV
-
-【相互作用矩阵】（从文献提取，已转换为MSR格式）
-  CO-CO：(100) -0.596 eV, (110) -0.318 eV, (111) -1.008 eV
-  O-O：(100) -0.768 eV, (110) -0.474 eV, (111) -1.074 eV
-  CO-O：(100) -0.600 eV, (110) -0.210 eV, (111) -0.798 eV
-
-⚠️ 注意：缺少表面能数据，建议：
-1. 搜索其他文献补充表面能
-2. 使用默认表面能值
-3. 用户提供已知参数
-```
+**关键点**：
+- 始终从开放获取期刊开始
+- 文献搜索不返回气体熵，parameter-builder必须计算
+- 文献中的相互作用参数可能是KMC格式，需转换为MSR格式
 
 ---
 

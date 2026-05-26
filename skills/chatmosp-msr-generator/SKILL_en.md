@@ -105,29 +105,31 @@ python3 mosp-for-chatMOSP/utils/msr.py input.json OUTPUT_DIR/
 在运行MSR计算之前,必须准备完整的input.json文件。
 Before running MSR calculation, you must prepare a complete input.json file.
 
+### ⚠️ Large Cluster Calculation Time Warning / 大尺寸团簇计算时间提醒
+
+When cluster radius ≥50Å, calculation time is long. You MUST warn the user before execution:
+
+```
+⚠️ Calculation Time Warning / 计算时间提醒：
+Current cluster radius is {R}Å, estimated calculation time is approximately {estimated_minutes} minutes.
+(Reference: radius 50Å takes about 20 minutes, larger radius takes longer)
+Running multiple tasks simultaneously may increase time.
+Continue with MSR calculation?
+```
+
+**Time Reference / 时间参考**:
+- Radius 50Å (~11,000 atoms): about 20 minutes
+- Radius 65Å (~35,000 atoms): about 60 minutes or longer
+- Larger radius → cubic growth in atom count → significantly longer calculation time
+
+**Note / 注意**: If user selects multiple conditions (e.g., multiple temperatures), each condition requires separate calculation, total time multiplies.
+
 **推荐方法**:调用`chatmosp-parameter-builder`技能来准备参数。
 **Recommended Method**: Call `chatmosp-parameter-builder` skill to prepare parameters.
 
-```python
-# 使用parameter-builder技能准备参数 / Use parameter-builder skill to prepare parameters
-from chatmosp_parameter_builder import ParameterBuilder
-
-builder = ParameterBuilder()
-
-# 示例:准备Pd在473K下的参数 / Example: Prepare parameters for Pd at 473K
-params = builder.build_parameters({
-    "metal": "Pd",
-    "temperature": "473",
-    "gases": ["CO", "O2"],
-    "partial_pressures": {"CO": 9, "O2": 18},
-    "pressure": "101325",
-    "radius": "50"
-})
-
-# parameter-builder会自动计算气体熵 / parameter-builder will automatically calculate gas entropy
-# CO在473K的熵值 = 0.002356 eV/K / CO entropy at 473K = 0.002356 eV/K
-# O2在473K的熵值 = 0.002446 eV/K / O2 entropy at 473K = 0.002446 eV/K
-```
+示例:准备Pd在473K下的参数 → 调用parameter-builder技能 → 自动查找MOSP_database → 自动计算气体熵 / Example: Prepare parameters for Pd at 473K → call parameter-builder skill → auto-search MOSP_database → auto-calculate gas entropy
+- CO在473K的熵值 = 0.002356 eV/K / CO entropy at 473K = 0.002356 eV/K
+- O₂在473K的熵值 = 0.002446 eV/K / O₂ entropy at 473K = 0.002446 eV/K
 
 #### 步骤2:气体熵自动计算 / Step 2: Automatic Gas Entropy Calculation
 **重要**:`parameter-builder`技能会根据温度自动计算气体熵值。
@@ -165,31 +167,11 @@ Ensure input.json contains all required MSR parameters:
 - Radius, nFaces, Face1/2/3参数 / parameters
 
 #### ⚠️ 常见错误:直接复制example文件 / Common Error: Directly Copying example File
-**错误做法**:直接复制`MOSP_database/Pd-COoxidation.json`而不调整气体熵。
-**Wrong Approach**: Directly copying `MOSP_database/Pd-COoxidation.json` without adjusting gas entropy.
-```python
-# ❌ 错误:直接复制example文件 / Wrong: Directly copy example file
-import json
-with open("MOSP_database/Pd-COoxidation.json") as f:
-    params = json.load(f)
-params["Temperature"] = "873"  # 修改温度 / Modify temperature
-# 但是Gas1_S和Gas2_S还是473K的值,没有重新计算!
-# But Gas1_S and Gas2_S are still values for 473K, not recalculated!
-```
+**错误做法**:直接复制`MOSP_database/Pd-COoxidation.json`而不调整气体熵。只修改温度但Gas1_S和Gas2_S还是原来温度的值，没有重新计算。
+**Wrong Approach**: Directly copying `MOSP_database/Pd-COoxidation.json` without adjusting gas entropy. Only changing temperature but Gas1_S and Gas2_S remain at the original temperature values, not recalculated.
 
-**正确做法**:使用parameter-builder技能准备参数。
-**Correct Approach**: Use parameter-builder skill to prepare parameters.
-```python
-# ✅ 正确:使用parameter-builder准备参数 / Correct: Use parameter-builder to prepare parameters
-builder = ParameterBuilder()
-params = builder.build_parameters({
-    "metal": "Pd",
-    "temperature": "873",  # 873K
-    # ... 其他参数 / other parameters
-})
-# Gas1_S和Gas2_S会自动根据873K重新计算
-# Gas1_S and Gas2_S will be automatically recalculated for 873K
-```
+**正确做法**:使用parameter-builder技能准备参数，它会根据新温度自动重新计算气体熵。
+**Correct Approach**: Use parameter-builder skill to prepare parameters; it will automatically recalculate gas entropy based on the new temperature.
 
 ### 生成的文件 / Generated Files:
 - `ini.xyz` - 优化后的团簇结构(包含所有原子)/ Optimized cluster structure (including all atoms)
@@ -212,8 +194,8 @@ MSR calculation → Generate ini.xyz → (if KMC needed) → KMC skill prepares 
 ---
 
 ### 技能定位 / Skill Positioning
-MSR生成器是ChatMOSP系统的核心计算引擎,负责:
-The MSR generator is the core calculation engine of the ChatMOSP system, responsible for:
+MSR生成器是chatMOSP系统的核心计算引擎,负责:
+The MSR generator is the core calculation engine of the chatMOSP system, responsible for:
 
 1. **MOSP引擎调用 / MOSP Engine Invocation**: 执行金属团簇结构生成计算
    Executing metal cluster structure generation calculations
@@ -232,8 +214,6 @@ The MSR generator is the core calculation engine of the ChatMOSP system, respons
   Automatically retry failed calculations (up to 3 times)
 - ✅ **智能降级策略 / Smart Degradation Strategy**: 调整参数以帮助收敛
   Adjust parameters to help convergence
-- ✅ **超时保护 / Timeout Protection**: 防止计算无限运行
-  Prevent calculations from running indefinitely
 - ✅ **资源监控 / Resource Monitoring**: 检查内存和CPU使用情况
   Check memory and CPU usage
 
@@ -324,15 +304,9 @@ python3 utils/paint.py OUTPUT/{task_name}/{task_name}_cluster.xyz \
 - 需要分两步分别生成静态图片和动图
 - Two separate steps are required to generate static image and animation respectively
 
-**配置选项 / Configuration Options** (in config.json):
-- `visualization.enabled`:是否启用可视化(默认:true)
-  Whether to enable visualization (default: true)
-- `generate_static_image`:生成静态图(默认:true)
-  Generate static images (default: true)
-- `generate_animation`:生成动态图(默认:true)
-  Generate animations (default: true)
-- `max_atoms_for_animation`:动图生成的原子数限制(默认:20000)
-  Atom limit for animation generation (default: 20000)
+可视化配置 / Visualization Config:
+- 默认生成静态图(structure.png)和旋转动图(rotation.gif) / Default: generate static image and rotation GIF
+- 动图生成建议原子数≤20000（超过时仅生成静态图） / Animation recommended for ≤20000 atoms (static only above)
 
 #### 步骤3:向用户展示可视化结果 / Step 3: Present Visualization to User ⚠️ 重要 / IMPORTANT
 
@@ -362,149 +336,14 @@ python3 utils/paint.py OUTPUT/{task_name}/{task_name}_cluster.xyz \
 
 ## 📝 使用示例 / Usage Examples
 
-### English Usage
+### 英文示例 / English Example
 ```
-Input: {
-    "action": "execute_msr_calculation",
-    "parameters": {
-        "Element": "Pt",
-        "Temperature": "500",
-        "MSR": {
-            "Radius": "20",
-            "nFaces": 3,
-            "SurfaceEnergies": {...},
-            "AdsorptionEnergies": {...}
-        }
-    }
-}
+用户: Generate Pd cluster for CO oxidation at 500K, 101325Pa
+系统: [识别为MSR任务 → 查找参数 → 展示确认 → 执行计算 → 展示结构图]
 ```
 
-### Chinese Usage / 中文使用方式
+### 中文示例 / Chinese Example
 ```
-输入: {
-    "action": "execute_msr_calculation",
-    "parameters": {
-        "Element": "Pt",
-        "Temperature": "500",
-        "MSR": {
-            "Radius": "20",
-            "nFaces": 3,
-            "SurfaceEnergies": {...},
-            "AdsorptionEnergies": {...}
-        }
-    }
-}
+用户: 计算Pt纳米颗粒在500K下的团簇结构
+系统: [识别为MSR任务 → 查找参数 → 展示确认 → 执行计算 → 展示结构图]
 ```
-
-### Command Line Examples / 命令行示例
-```bash
-# English: Generate Pd cluster for CO oxidation
-# 中文: 生成Pd团簇用于CO氧化
-
-python chatmosp-msr-generator.py --metal Pd --temperature 500 --pressure 101325 --gases CO
-
-# English: Create platinum nanoparticle structure
-# 中文: 创建铂纳米颗粒结构
-
-python chatmosp-msr-generator.py --metal Pt --radius 30
-```
-
-## 🌐 语言支持 / Language Support
-
-### 支持的语言 / Supported Languages
-- **中文 (zh_CN)**: 完整的任务识别、参数提取、错误提示
-  Complete task recognition, parameter extraction, error messages
-- **英文 (en_US)**: 完整的关键词覆盖、参数提取、错误提示
-  Complete keyword coverage, parameter extraction, error messages
-
-### 语言检测 / Language Detection
-系统会自动检测输入语言并提供相应的支持:
-The system automatically detects input language and provides corresponding support:
-
-1. **中文输入**: 使用中文关键词、中文参数提取规则、中文错误信息
-   Chinese input: Uses Chinese keywords, Chinese parameter extraction rules, Chinese error messages
-2. **英文输入**: 使用英文关键词、英文参数提取规则、英文错误信息
-   English input: Uses English keywords, English parameter extraction rules, English error messages
-3. **混合输入**: 根据关键词自动选择最佳语言处理
-   Mixed input: Automatically selects best language processing based on keywords
-
-### 英文关键词列表 / English Keywords List
-```
-generate, create, build, calculate, run, execute, perform
-MSR, structure, generation, cluster, nanoparticle, metal
-surface, reconstruction, morphology, shape, catalyst
-metal cluster, structure generation, MSR calculation
-visualization, animation, output, result, configuration
-```
-
-## 🔄 版本历史 / Version History
-
-### 当前版本 / Current Version: 1.0.0
-- ✅ 完成英文关键词补充 / Completed English keyword supplementation
-- ✅ 支持双语错误信息 / Supports bilingual error messages
-- ✅ 更新输出路径为正确MOSP路径 / Updated output path to correct MOSP path
-- ✅ 创建双语配置文件 / Created bilingual configuration files
-- ✅ 提供完整的英文工作流支持 / Provides complete English workflow support
-
-### 历史版本 / Previous Versions
-- **v0.9.0**: 初始版本,主要支持中文 / Initial version, mainly Chinese support
-- **v0.9.5**: 添加基本的英文关键词 / Added basic English keywords
-- **v0.9.8**: 更新输出路径配置 / Updated output path configuration
-- **v1.0.0**: 完整双语支持,问题修复 / Complete bilingual support, bug fixes
-
-## 📞 技术支持 / Technical Support
-
-### 常见问题 / Frequently Asked Questions
-
-#### Q: 英文输入为什么无法识别任务?
-**A**: 需要确保输入包含英文关键词,如"generate", "create", "calculate"等。
-**A**: Ensure input contains English keywords like "generate", "create", "calculate", etc.
-
-#### Q: 输出文件在哪里?
-**A**: 所有输出文件在 `mosp-for-chatMOSP/OUTPUT/` 目录中。
-**A**: All output files are in `mosp-for-chatMOSP/OUTPUT/` directory.
-
-#### Q: 如何启用动画生成?
-**A**: 在config.json中设置 `generate_animation: true`。
-**A**: Set `generate_animation: true` in config.json.
-
-#### Q: 支持哪些语言?
-**A**: 支持中文和英文,系统会自动检测语言。
-**A**: Supports Chinese and English, system automatically detects language.
-
-### 联系方式 / Contact
-- **GitHub Issues**: [ChatMOSP Repository](https://github.com/your-repo/chatmosp)
-- **Documentation**: [ChatMOSP Documentation](https://docs.your-site.com/chatmosp)
-- **Email**: support@your-organization.com
-
-## 🚀 快速开始 / Quick Start
-
-### 对于中文用户 / For Chinese Users
-```
-1. 输入中文任务描述,如:"我想计算 Pt 在 500K 下的团簇结构"
-2. 系统识别为MSR任务
-3. 生成参数并执行计算
-4. 在 `mosp-for-chatMOSP/OUTPUT/` 查看结果
-```
-
-### 对于英文用户 / For English Users
-```
-1. Input English task description, e.g.: "Generate Pd cluster for CO oxidation at 500K"
-2. System recognizes as MSR task
-3. Generates parameters and executes calculation
-4. View results in `mosp-for-chatMOSP/OUTPUT/`
-```
-
-### 验证安装 / Verify Installation
-```bash
-# 测试英文输入识别 / Test English input recognition
-python test_updated_recognizer.py
-
-# 测试完整工作流 / Test complete workflow
-python test_full_msr_workflow.py --language en
-```
-
----
-*Last Updated: 2026-04-26*
-*Version: 1.0.0*
-*Language Support: zh_CN, en_US*

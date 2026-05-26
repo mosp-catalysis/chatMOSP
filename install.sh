@@ -1,52 +1,50 @@
 #!/bin/bash
 
-# MOSP OpenClaw Skills 安装脚本
-# 版本: 1.0.0
+# chatMOSP Skills Installation Script
+# Version: 2.0.0 (Document-driven architecture)
 
 echo "========================================"
-echo "MOSP OpenClaw Skills 安装程序"
+echo "chatMOSP Skills Installer"
 echo "========================================"
 
-# 检查OpenClaw workspace目录
+# Check OpenClaw workspace
 WORKSPACE_DIR="$HOME/.openclaw/workspace"
 SKILLS_DIR="$WORKSPACE_DIR/skills"
 
 if [ ! -d "$WORKSPACE_DIR" ]; then
-    echo "❌ 错误: OpenClaw workspace目录不存在: $WORKSPACE_DIR"
-    echo "请先安装OpenClaw并确保其正常运行"
+    echo "❌ Error: OpenClaw workspace not found at $WORKSPACE_DIR"
+    echo "Please install OpenClaw first."
     exit 1
 fi
 
-# 创建skills目录（如果不存在）
+# Create skills directory if needed
 mkdir -p "$SKILLS_DIR"
 
-# 复制技能文件
-echo "📁 正在复制技能文件..."
-cp -r skills/* "$SKILLS_DIR/"
+# Copy skill documents
+echo "📁 Copying skill documents..."
+cp -r skills/chatmosp-* "$SKILLS_DIR/"
 
-# 检查复制结果
-echo "🔍 检查安装结果..."
-COUNT=$(find "$SKILLS_DIR" -name "*mosp*" -type d | wc -l)
+# Verify installation
+COUNT=$(find "$SKILLS_DIR" -maxdepth 1 -name "chatmosp-*" -type d | wc -l)
 
-if [ "$COUNT" -ge 5 ]; then
-    echo "✅ 安装成功！共安装了 $COUNT 个MOSP技能"
+if [ "$COUNT" -ge 6 ]; then
+    echo "✅ Installation successful! $COUNT chatMOSP skills installed."
     echo ""
-    echo "已安装的技能:"
-    echo "1. mosp-speech2text-1.0.0 - 语音识别"
-    echo "2. mosp-inputhandler-1.0.0 - 命令处理"
-    echo "3. mosp-inputfilemanager-1.0.0 - 文件管理"
-    echo "4. mosp-msr-1.0.0 - 团簇结构生成"
-    echo "5. mosp-kmc-1.0.0 - 动力学模拟"
+    echo "Installed skills:"
+    echo "  1. chatmosp-input-coordinator   - Task recognition and routing"
+    echo "  2. chatmosp-parameter-builder    - Parameter construction with auto-calculation"
+    echo "  3. chatmosp-msr-generator        - Nanoparticle structure generation (MSR)"
+    echo "  4. chatmosp-kmc-simulator        - Kinetic Monte Carlo simulation (KMC)"
+    echo "  5. chatmosp-literature-search     - Literature parameter extraction"
+    echo "  6. chatmosp-file-organizer        - File management and visualization"
     echo ""
-    echo "📖 使用方法:"
-    echo "1. 重启OpenClaw或等待技能自动加载"
-    echo "2. 使用语音或文本命令控制计算流程"
-    echo "3. 详细文档请查看 examples/ 目录"
-    echo ""
-    echo "💡 提示: 可以运行 'openclaw skills list' 查看已安装技能"
+    echo "Next steps:"
+    echo "  1. Make sure MOSP for chatMOSP is installed:"
+    echo "     https://github.com/mosp-catalysis/mosp-for-chatMOSP"
+    echo "  2. Restart OpenClaw or wait for skills to auto-load"
 else
-    echo "⚠️  警告: 可能未完全安装所有技能"
-    echo "请手动检查 $SKILLS_DIR 目录"
+    echo "⚠️  Warning: Only $COUNT skills found. Expected 6."
+    echo "Please check $SKILLS_DIR"
 fi
 
 echo "========================================"

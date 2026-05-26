@@ -53,8 +53,8 @@
 - ✅ **Intelligent Parameter Extraction / 智能参数提取**: Enhanced extraction of metal, temperature, gases, steps, size, etc.
 
 ### 技能定位 / Skill Positioning
-输入协调器是ChatMOSP系统的智能入口，负责：  
-The input coordinator is the intelligent entry point of the ChatMOSP system, responsible for:
+输入协调器是chatMOSP系统的智能入口，负责：  
+The input coordinator is the intelligent entry point of the chatMOSP system, responsible for:
 
 1. **多语言意图理解 / Multilingual Intent Understanding**: 解析中英文混合的自然语言输入  
    Parse Chinese-English mixed natural language input
@@ -325,10 +325,8 @@ interaction:
 
 ```
 chatmosp-input-coordinator/
-├── SKILL.md                    # 技能说明文档（中文版）/ Skill documentation (Chinese version)
-├── SKILL_en.md                 # 技能说明文档（英文版）/ Skill documentation (English version)
-├── config.json                 # 配置文件 / Configuration file
-└── requirements.txt            # 依赖包 / Dependencies
+├── SKILL.md           # 技能说明文档（中文版）/ Skill documentation (Chinese version)
+└── SKILL_en.md        # 技能说明文档（英文版）/ Skill documentation (English version)
 ```
 
 ## 🔄 更新说明 / Update Notes
@@ -360,8 +358,8 @@ python3 utils/paint.py OUTPUT/{task_name}/{task_name}_cluster.xyz \
 paint.py can only generate one type of image per call (static image OR animation), two separate steps are required.
 
 ### KMC任务系统要求 / KMC Task System Requirements
-KMC计算需要Wine环境运行Windows版`mine.exe`引擎：
-KMC calculation requires Wine environment to run Windows version `mine.exe` engine:
+KMC计算需要Wine环境运行Windows版`main.exe`引擎：
+KMC calculation requires Wine environment to run Windows version `main.exe` engine:
 ```bash
 # 检查Wine是否已安装 / Check if Wine is installed
 which wine

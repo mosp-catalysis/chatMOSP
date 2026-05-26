@@ -91,28 +91,30 @@ python3 mosp-for-chatMOSP/utils/msr.py input.json OUTPUT_DIR/
 #### 步骤1:准备input.json文件
 在运行MSR计算之前,必须准备完整的input.json文件。
 
+### ⚠️ 大尺寸团簇计算时间提醒
+
+当团簇半径≥50Å时,计算时间较长,执行前必须提醒用户:
+
+```
+⚠️ 计算时间提醒：
+当前团簇半径为 {R}Å，预计计算时间约 {estimated_minutes} 分钟。
+（参考：半径50Å约需20分钟，半径越大时间越长）
+同时运行多个任务可能导致用时增加。
+是否继续执行MSR计算？
+```
+
+**时间参考**:
+- 半径50Å（约11000原子）：约20分钟
+- 半径65Å（约35000原子）：约60分钟或更长
+- 半径越大，原子数立方增长，计算时间显著增加
+
+**注意**：如果用户选择多个条件（如多个温度），每个条件都需要单独计算，总时间会成倍增加。
+
 **推荐方法**:调用`chatmosp-parameter-builder`技能来准备参数。
 
-```python
-# 使用parameter-builder技能准备参数
-from chatmosp_parameter_builder import ParameterBuilder
-
-builder = ParameterBuilder()
-
-# 示例:准备Pd在473K下的参数
-params = builder.build_parameters({
-    "metal": "Pd",
-    "temperature": "473",
-    "gases": ["CO", "O2"],
-    "partial_pressures": {"CO": 9, "O2": 18},
-    "pressure": "101325",
-    "radius": "50"
-})
-
-# parameter-builder会自动计算气体熵
-# CO在473K的熵值 = 0.002356 eV/K
-# O2在473K的熵值 = 0.002446 eV/K
-```
+示例:准备Pd在473K下的参数 → 调用parameter-builder技能 → 自动查找MOSP_database → 自动计算气体熵
+- CO在473K的熵值 = 0.002356 eV/K
+- O₂在473K的熵值 = 0.002446 eV/K
 
 #### 步骤2:气体熵自动计算
 **重要**:`parameter-builder`技能会根据温度自动计算气体熵值。
@@ -147,27 +149,9 @@ CO在1000K的熵值:
 - Radius, nFaces, Face1/2/3参数
 
 #### ⚠️ 常见错误:直接复制example文件
-**错误做法**:直接复制`MOSP_database/Pd-COoxidation.json`而不调整气体熵。
-```python
-# ❌ 错误:直接复制example文件
-import json
-with open("MOSP_database/Pd-COoxidation.json") as f:
-    params = json.load(f)
-params["Temperature"] = "873"  # 修改温度
-# 但是Gas1_S和Gas2_S还是473K的值,没有重新计算!
-```
+**错误做法**:直接复制`MOSP_database/Pd-COoxidation.json`而不调整气体熵。只修改温度但Gas1_S和Gas2_S还是原来温度的值，没有重新计算。
 
-**正确做法**:使用parameter-builder技能准备参数。
-```python
-# ✅ 正确:使用parameter-builder准备参数
-builder = ParameterBuilder()
-params = builder.build_parameters({
-    "metal": "Pd",
-    "temperature": "873",  # 873K
-    # ... 其他参数
-})
-# Gas1_S和Gas2_S会自动根据873K重新计算
-```
+**正确做法**:使用parameter-builder技能准备参数，它会根据新温度自动重新计算气体熵。
 
 ### 生成的文件:
 - `ini.xyz` - 优化后的团簇结构(包含所有原子)
@@ -195,7 +179,7 @@ MSR计算 → 生成ini.xyz → (如需KMC)→ KMC技能准备独立参数 → K
 **核心职责**: 金属团簇结构生成计算
 
 ### 技能定位
-MSR生成器是ChatMOSP系统的核心计算引擎,负责:
+MSR生成器是chatMOSP系统的核心计算引擎,负责:
 1. **MOSP引擎调用**:执行金属团簇结构生成计算
 2. **智能重试机制**:基于设计文档的失败重试和降级策略
 3. **参数适配**:将通用参数转换为MOSP引擎特定格式
@@ -204,7 +188,6 @@ MSR生成器是ChatMOSP系统的核心计算引擎,负责:
 ### 安全与可靠性
 - ✅ **失败重试机制**:自动重试失败的计算(最多3次)
 - ✅ **智能降级策略**:调整参数以帮助收敛
-- ✅ **超时保护**:防止计算无限运行
 - ✅ **资源监控**:检查内存和CPU使用情况
 
 ## 🎯 核心功能
@@ -289,11 +272,9 @@ python3 utils/paint.py OUTPUT/{task_name}/{task_name}_cluster.xyz \
 - 需要分两步分别生成静态图片和动图
 - Two separate steps are required to generate static image and animation respectively
 
-**配置选项**(在config.json中):
-- `visualization.enabled`:是否启用可视化(默认:true)
-- `generate_static_image`:生成静态图(默认:true)
-- `generate_animation`:生成动态图(默认:true)
-- `max_atoms_for_animation`:动图生成的原子数限制(默认:20000)
+可视化配置：
+- 默认生成静态图(structure.png)和旋转动图(rotation.gif)
+- 动图生成建议原子数≤20000（超过时仅生成静态图）
 
 #### 步骤3：向用户展示可视化结果 ⚠️ 重要
 
@@ -321,68 +302,7 @@ python3 utils/paint.py OUTPUT/{task_name}/{task_name}_cluster.xyz \
 ## 📝 使用示例
 
 ```
-输入: {
-    "action": "execute_msr_calculation",
-    "parameters": {
-        "Element": "Pt",
-        "Temperature": "500",
-        "MSR": {
-            "Radius": "20",
-            "nFaces": 3,
-            ...
-        }
-    },
-    "task_directory": "mosp-for-chatMOSP/OUTPUT/Pt_500K_12345"
-}
-
-输出: {
-    "success": true,
-    "structure_file": "structure.xyz",
-    "energy": "-123.45 eV",
-    "converged": true,
-    "iterations": 150,
-    "execution_time": 45.2
-}
+用户: 计算Pt纳米颗粒在500K下的团簇结构
+系统: [识别为MSR任务 → 查找参数 → 展示确认 → 执行计算 → 展示结构图]
 ```
 
-## 🛠️ 配置选项
-
-```yaml
-# 技能配置
-skill:
-  name: "chatmosp-msr-generator"
-  version: "1.0.0"
-
-# 计算配置
-computation:
-  mosp_engine_path: "mosp-for-chatMOSP/"
-  max_iterations: 500
-  convergence_tolerance: 1e-6
-  timeout_seconds: 3600
-
-# 重试配置
-retry:
-  max_attempts: 3
-  retry_delay_seconds: 10
-  adjustment_strategies:
-    - {"type": "reduce_radius", "factor": 0.8, "message": "减小团簇尺寸"}
-    - {"type": "increase_iterations", "factor": 1.5, "message": "增加迭代次数"}
-    - {"type": "adjust_temperature", "delta": 50, "message": "调整温度"}
-
-# 资源监控
-resources:
-  max_memory_mb: 8192
-  max_cpu_percent: 90
-  check_interval_seconds: 30
-```
-
-## 📁 文件结构
-
-```
-chatmosp-msr-generator/
-├── SKILL.md                    # 技能说明文档（中文版）
-├── SKILL_en.md                 # 技能说明文档（英文版）
-├── config.json                 # 配置文件
-├── config_en.json              # 配置文件（英文版）
-└── requirements.txt            # 依赖包
-```

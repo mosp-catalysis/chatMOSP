@@ -455,8 +455,8 @@ with open('KMC任务目录/input.json') as f:
 **核心职责 / Core Responsibility**: Parameter Query, Intelligent Completion, Gas Entropy Calculation, Validation and Generation
 
 ### 技能定位 / Skill Positioning
-参数构建器是ChatMOSP系统的参数智能管理中心,负责:
-The parameter builder is the intelligent parameter management center of the ChatMOSP system, responsible for:
+参数构建器是chatMOSP系统的参数智能管理中心,负责:
+The parameter builder is the intelligent parameter management center of the chatMOSP system, responsible for:
 
 1. **智能参数补全 / Intelligent Parameter Completion**: 基于MOSP_database搜索+温度替换+气体熵计算的完整参数生成
    Complete parameter generation based on MOSP_database search + temperature replacement + gas entropy calculation
@@ -630,16 +630,31 @@ Load matching example file → Replace temperature parameters → Calculate gas 
 根据`chatmosp-literature-search`返回的参数完整性评分,决定下一步操作:
 / Decide next steps based on the parameter completeness score returned by `chatmosp-literature-search`:
 
+**⚠️ 重要：文献搜索后必须计算气体熵！/ IMPORTANT: Gas entropy MUST be calculated after literature search!**
+
+文献搜索返回的参数**不包含**气体熵值(Gas_S/S_gas)。无论完整性评分多少，在组装input.json之前，必须根据用户指定的温度自动计算气体熵值：
+/ Parameters returned by literature search do **NOT** include gas entropy (Gas_S/S_gas). Regardless of completeness score, gas entropy MUST be automatically calculated based on user-specified temperature before assembling input.json:
+
+```
+文献搜索返回参数 → 提取E_ads, w, gamma → ✅ 根据温度计算Gas_S/S_gas → 组装完整input.json
+Literature search returns → Extract E_ads, w, gamma → ✅ Calculate Gas_S/S_gas based on temperature → Assemble complete input.json
+```
+
+计算公式 / Calculation formula: `S(eV/K) = (a × T^b) / 96485`
+
 **完整性评分 9-10分 / Completeness Score 9-10 points**:
 - 参数完整,可直接使用 / Parameters complete, ready to use
+- ✅ 仍需计算气体熵值 / Still need to calculate gas entropy
 - 展示参数给用户确认 / Display parameters for user confirmation
 
 **完整性评分 7-8分 / Completeness Score 7-8 points**:
 - 参数较完整,可以使用 / Parameters mostly complete, usable
+- ✅ 仍需计算气体熵值 / Still need to calculate gas entropy
 - 需要用户确认缺失的参数 / Need user to confirm missing parameters
 
 **完整性评分 5-6分 / Completeness Score 5-6 points**:
 - 参数部分完整,需要补充 / Parameters partially complete, need supplement
+- ✅ 仍需计算气体熵值 / Still need to calculate gas entropy
 - 向用户说明缺失的参数,建议补充方案 / Explain missing parameters to user, suggest supplement solutions
 
 **完整性评分 3-4分 / Completeness Score 3-4 points**:
@@ -984,11 +999,8 @@ output:
 
 ```
 chatmosp-parameter-builder/
-├── SKILL.md                    # 技能说明文档（中文版）/ Skill documentation (Chinese version)
-├── SKILL_en.md                 # 技能说明文档（英文版）/ Skill documentation (English version)
-├── config.json                 # 配置文件 / Configuration file
-├── config_en.json              # 配置文件（英文版）/ Configuration file (English version)
-└── requirements.txt            # 依赖包 / Dependencies
+├── SKILL.md           # 技能说明文档（中文版）/ Skill documentation (Chinese version)
+└── SKILL_en.md        # 技能说明文档（英文版）/ Skill documentation (English version)
 ```
 
 ## 🌐 语言一致性 / Language Consistency
@@ -996,51 +1008,21 @@ chatmosp-parameter-builder/
 ### 响应语言策略 / Response Language Strategy
 1. **自动语言检测 / Automatic Language Detection**: 根据用户输入自动检测语言 / Automatically detect language based on user input
 2. **一致性响应 / Consistent Response**: 英文输入得到英文回复,中文输入得到中文回复 / English input gets English reply, Chinese input gets Chinese reply
-3. **双语支持 / Bilingual Support**: 参数展示器(ParameterPresenter)支持中英文切换 / ParameterPresenter supports Chinese-English switching
-4. **配置加载 / Configuration Loading**: 自动加载对应语言的配置文件(config.json / config_en.json)/ Automatically load corresponding language configuration file
+3. **双语支持 / Bilingual Support**: 根据用户语言选择SKILL.md或SKILL_en.md / Select SKILL.md or SKILL_en.md based on user language
 
-### 实现原理 / Implementation Principle
-- **输入协调器 / Input Coordinator** 检测用户语言 / Detects user language
-- **参数展示器 / Parameter Presenter** 根据语言生成相应格式的输出 / Generates output in corresponding format based on language
-- **气体熵计算 / Gas Entropy Calculation** 语言无关,确保科学计算准确性 / Language independent, ensures scientific calculation accuracy
-- **文件保存 / File Saving** 使用通用JSON格式,语言信息作为元数据 / Uses universal JSON format, language information as metadata
+### 示例 / Examples
+- 英文输入 "Show me the Pd structure" → 英文回复,使用SKILL_en.md / English reply, use SKILL_en.md
+- 中文输入 "生成Pd团簇" → 中文回复,使用SKILL.md / Chinese reply, use SKILL.md
 
-### 示例 / Example
-```python
-# 英文输入 -> 英文输出 / English input -> English output
-user_input = "Show me the structure of platinum clusters"
-language = "en_US"  # 自动检测 / Automatic detection
-response = parameter_presenter.present_parameters_for_confirmation(
-    parameters, source, language
-)
-# 输出英文确认信息 / Output English confirmation message
-
-# 中文输入 -> 中文输出 / Chinese input -> Chinese output
-user_input = "显示铂团簇的结构"
-language = "zh_CN"  # 自动检测 / Automatic detection
-response = parameter_presenter.present_parameters_for_confirmation(
-    parameters, source, language
-)
-# 输出中文确认信息 / Output Chinese confirmation message
-```
-
+### 关键原则 / Key Principles
+- 气体熵计算与语言无关,确保科学计算准确性 / Gas entropy calculation is language-independent, ensuring scientific accuracy
+- 文件保存使用通用JSON格式 / File saving uses universal JSON format
 ## 🔄 更新说明 / Update Notes
 
-**版本 2.0.0 (2026-04-27) - 重大更新 / Version 2.0.0 (2026-04-27) - Major Update**:
-1. ✅ **智能参数补全 / Intelligent Parameter Completion**: 基于MOSP_database搜索的完整参数生成流程 / Complete parameter generation process based on MOSP_database search
-2. ✅ **气体熵自动计算 / Automatic Gas Entropy Calculation**: 支持7种气体的温度依赖熵值计算 / Supports temperature-dependent entropy calculation for 7 gases
-3. ✅ **MOSP_database智能搜索 / Intelligent Examples Search**: 金属+气体匹配,最佳example选择 / Metal+gas matching, best example selection
-4. ✅ **温度自动替换 / Automatic Temperature Replacement**: 保持example默认参数,仅替换用户指定参数 / Keep example default parameters, only replace user-specified parameters
-5. ✅ **完整input.json生成 / Complete input.json Generation**: 输出可直接用于MSR/KMC计算的参数文件 / Output parameter files that can be directly used for MSR/KMC calculation
-6. ✅ **支持新命名格式 / Supports New Naming Formats**: 识别`Pd_CO9_O18_473K_100000Pa_R50`等格式 / Recognize formats like `Pd_CO9_O18_473K_100000Pa_R50`
-
-**核心算法优化 / Core Algorithm Optimization**:
-- **相似度计算 / Similarity Calculation**: 改进的金属+气体匹配算法 / Improved metal+gas matching algorithm
-- **温度处理 / Temperature Processing**: 支持°C到K的自动转换 / Supports automatic conversion from °C to K
-- **气体推断 / Gas Inference**: 从"CO氧化环境"推断需要CO和O2气体 / Infer CO and O2 gases needed from "CO oxidation environment"
-- **错误恢复 / Error Recovery**: 找不到匹配example时的降级策略 / Degradation strategy when no matching example is found
-
-**向后兼容性 / Backward Compatibility**:
-- 旧版参数查询接口保持兼容 / Old parameter query interface remains compatible
-- 新增`action: "complete_parameters"`用于智能补全 / New `action: "complete_parameters"` for intelligent completion
-- 气体熵计算可配置启用/禁用 / Gas entropy calculation configurable enable/disable
+**版本 2.0 (2026-05) - 文档驱动架构 / Document-Driven Architecture**:
+- 技能文档（SKILL.md/SKILL_en.md）作为AI操作指南，不再使用Python代码 / Skill documents (SKILL.md/SKILL_en.md) serve as AI operation guides, no Python code used
+- 智能参数补全 / Intelligent parameter completion based on MOSP_database
+- 气体熵自动计算 / Automatic gas entropy calculation for 7 gases
+- 相互作用参数转换 / Automatic MSR/KMC interaction parameter conversion
+- 文献搜索集成 / Literature search integration when MOSP_database lacks data
+- 用户确认流程 / 5-option interactive parameter confirmation

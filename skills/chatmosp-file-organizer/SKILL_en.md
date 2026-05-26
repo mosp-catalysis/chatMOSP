@@ -47,8 +47,8 @@
 **核心职责 / Core Responsibility**: Standard Directory Structure Creation, Intelligent Task Naming, Secure File Operations
 
 ### 技能定位 / Skill Positioning
-文件组织器是ChatMOSP系统的文件系统管家,负责:
-The file organizer is the file system manager of the ChatMOSP system, responsible for:
+文件组织器是chatMOSP系统的文件系统管家,负责:
+The file organizer is the file system manager of the chatMOSP system, responsible for:
 
 1. **智能任务命名 / Intelligent Task Naming**: 根据任务类型生成标准化的任务名称(MSR/KMC不同格式)
    Generate standardized task names based on task type (different formats for MSR/KMC)
@@ -342,11 +342,8 @@ security:
 
 ```
 chatmosp-file-organizer/
-├── SKILL.md                    # 技能说明文档（中文版）/ Skill documentation (Chinese version)
-├── SKILL_en.md                 # 技能说明文档（英文版）/ Skill documentation (English version)
-├── config.json                 # 配置文件 / Configuration file
-├── config_en.json              # 配置文件（英文版）/ Configuration file (English version)
-└── requirements.txt            # 依赖包 / Dependencies
+├── SKILL.md           # 技能说明文档（中文版）/ Skill documentation (Chinese version)
+└── SKILL_en.md        # 技能说明文档（英文版）/ Skill documentation (English version)
 ```
 
 ## 🔄 更新说明 / Update Notes

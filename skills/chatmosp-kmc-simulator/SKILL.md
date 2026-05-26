@@ -44,7 +44,7 @@
 
 ### 前提条件：
 - MSR任务已完成，生成了 `ini.xyz` 结构文件
-- Wine环境已安装（运行Windows版mine.exe必需）
+- Wine环境已安装（运行Windows版main.exe必需）
 
 ### 步骤1：创建KMC任务目录
 ```bash
@@ -104,6 +104,26 @@ cp mosp-for-chatMOSP/MOSP_database/Pd-COoxidation.json KMC任务目录/input.jso
 （详见下方"🔄 KMC参数交互确认流程"部分）
 
 ### 步骤5：运行KMC
+
+**⚠️ 长步数KMC计算时间提醒**
+
+当KMC步数≥2000万步时，计算时间较长，执行前必须提醒用户：
+
+```
+⚠️ 计算时间提醒：
+当前KMC步数为 {N} 步，预计计算时间约 {estimated_hours} 小时。
+（参考：2000万步约需12小时）
+同时运行多个任务可能导致用时增加。
+是否继续执行KMC模拟？
+```
+
+**时间参考**:
+- 2000万步（20M steps）：约12小时
+- 4000万步（40M steps）：约24小时或更长
+- 步数越多，时间线性增长
+
+**注意**：如果用户选择多个条件（如多个温度），每个条件都需要单独计算，总时间会成倍增加。
+
 ```bash
 # KMC运行指令（注意：输出目录不需要添加OUTPUT前缀）
 python3 ../../kmc_standalone.py \
@@ -284,16 +304,14 @@ cat KMC任务目录/input.json | jq '.KMC | keys'
 **核心职责**: 动力学蒙特卡洛模拟  
 
 ### 技能定位
-KMC模拟器是ChatMOSP系统的动力学计算引擎，负责：
+KMC模拟器是chatMOSP系统的动力学计算引擎，负责：
 1. **KMC模拟执行**：执行催化剂表面反应动力学模拟
 2. **资源保护机制**：4000万步警告和自动资源保护
-3. **长时间运行管理**：进度监控和检查点恢复
-4. **结果分析与可视化**：提取TOF、覆盖度、反应路径
+3. **结果分析与可视化**：提取TOF、覆盖度、反应路径
 
 ### 核心安全特性
 - ⚠️ **4000万步警告**：当KMC步数超过4000万时发出警告
 - ✅ **资源保护**：自动监控内存和CPU使用
-- 🔄 **检查点机制**：定期保存进度，支持中断恢复
 - 📊 **进度报告**：实时监控模拟进度
 
 ## 🔄 KMC参数交互确认流程
@@ -366,23 +384,14 @@ KMC模拟器是ChatMOSP系统的动力学计算引擎，负责：
 ### 1. KMC模拟执行
 - 调用 mosp-for-chatMOSP KMC引擎
 - 准备KMC输入文件（KMC-input.json）
-- 管理长时间运行的计算
 - 捕获动力学数据
 
 ### 2. 资源保护与警告
 ```
 步数监控 → 超过阈值警告 → 用户确认 → 继续执行
-                      ↓
-                  用户取消 → 保存检查点 → 安全停止
 ```
 
-### 3. 进度监控与报告
-- 实时显示模拟进度
-- 预估剩余时间
-- 自动生成进度报告
-- 检查点保存和恢复
-
-### 4. 结果处理与分析
+### 3. 结果处理与分析
 - 解析TOF（周转频率）数据
 - 提取表面覆盖度信息
 - 生成反应路径分析
@@ -391,7 +400,7 @@ KMC模拟器是ChatMOSP系统的动力学计算引擎，负责：
 ## 🔧 技术实现
 
 ### ⚠️ 系统要求
-KMC计算需要Wine环境运行Windows版`mine.exe`引擎：
+KMC计算需要Wine环境运行Windows版`main.exe`引擎：
 
 ```bash
 # 检查Wine是否已安装
@@ -412,7 +421,7 @@ sudo apt-get install wine
 - `mosp-for-chatMOSP` - 核心计算引擎（已克隆）
 - `chatmosp-file-organizer` - 文件路径管理
 - `chatmosp-parameter-builder` - 参数验证
-- **Wine环境** - 运行Windows版`mine.exe`（必需）
+- **Wine环境** - 运行Windows版`main.exe`（必需）
 
 ### 执行流程
 ```
@@ -427,66 +436,6 @@ Wine可用 → 执行KMC → 监控进度 → 检查资源 → 收集结果 → 
 ## 📝 使用示例
 
 ```
-输入: {
-    "action": "execute_kmc_simulation",
-    "parameters": {
-        "Element": "Pt",
-        "Temperature": "500",
-        "KMC": {
-            "nLoop": "1000000",
-            "record_int": "1000",
-            ...
-        }
-    },
-    "task_directory": "mosp-for-chatMOSP/OUTPUT/Pt_500K_12345"
-}
-
-输出: {
-    "success": true,
-    "tof_data": [...],
-    "coverage_data": [...],
-    "total_steps": 1000000,
-    "execution_time": 120.5,
-    "plots": ["coverage.png", "tof_evolution.png"]
-}
-```
-
-## 🛠️ 配置选项
-
-```yaml
-# 技能配置
-skill:
-  name: "chatmosp-kmc-simulator"
-  version: "1.0.0"
-  
-# 计算配置
-computation:
-  mosp_engine_path: "mosp-for-chatMOSP/"
-  max_steps: 100000000  # 1亿步上限
-  warning_threshold_steps: 40000000  # 4000万步警告
-  timeout_hours: 24  # 24小时超时
-  
-# 资源保护
-resources:
-  memory_warning_threshold_mb: 4096  # 4GB内存警告
-  cpu_warning_threshold_percent: 80  # 80% CPU使用警告
-  checkpoint_interval_minutes: 30  # 30分钟保存一次检查点
-  
-# 结果处理
-results:
-  extract_coverage: true
-  extract_tof: true
-  generate_plots: true
-  plot_formats: ["png", "svg"]
-```
-
-## 📁 文件结构
-
-```
-chatmosp-kmc-simulator/
-├── SKILL.md                    # 技能说明文档（中文版）
-├── SKILL_en.md                 # 技能说明文档（英文版）
-├── config.json                 # 配置文件
-├── config_en.json              # 配置文件（英文版）
-└── requirements.txt            # 依赖包
+用户: 对Pt纳米颗粒进行CO氧化KMC模拟，850K，150Pa，2000万步
+系统: [识别为KMC任务 → 查找/确认参数 → ⚠️ 2000万步约需12小时，确认继续？→ 执行KMC → 绘制TOF/覆盖度图 → 展示结果]
 ```
