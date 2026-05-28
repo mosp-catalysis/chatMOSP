@@ -94,15 +94,17 @@ Step monitoring → Threshold warning → User confirmation → Continue executi
 
 ### 步骤1:准备KMC任务目录 / Step 1: Prepare KMC Task Directory
 ```bash
-# 命名规则:{MSR任务名}_KMC{步数}/ / Naming rule: {MSR_task_name}_KMC{steps}/
-mkdir -p OUTPUT/Pd_CO9_O18_473K_101325Pa_R50_KMC2000/INPUT
-mkdir -p OUTPUT/Pd_CO9_O18_473K_101325Pa_R50_KMC2000/OUTPUT
+# 命名规则：在MSR目录下创建KMC子目录 / Naming rule: Create KMC subdirectory under MSR directory
+# MSR目录 / MSR directory: OUTPUT/{msr_task_name}/
+# KMC目录 / KMC directory: OUTPUT/{msr_task_name}/KMC_{步数}steps/ / KMC_{steps}steps/
+mkdir -p OUTPUT/Pd_CO9_O18_473K_101325Pa_R50/KMC_2000steps/INPUT
+mkdir -p OUTPUT/Pd_CO9_O18_473K_101325Pa_R50/KMC_2000steps/OUTPUT
 ```
 
 ### 步骤2:准备输入文件 / Step 2: Prepare Input Files
 ```bash
 # 复制结构文件 / Copy structure file
-cp OUTPUT/Pd_CO9_O18_473K_101325Pa_R50/ini.xyz OUTPUT/Pd_CO9_O18_473K_101325Pa_R50_KMC2000/
+cp OUTPUT/Pd_CO9_O18_473K_101325Pa_R50/ini.xyz OUTPUT/Pd_CO9_O18_473K_101325Pa_R50/KMC_2000steps/
 
 # 准备input.json(从MOSP_database复制并修改)
 # Prepare input.json (copy from MOSP_database and modify)
@@ -148,8 +150,8 @@ python3 ../../kmc_standalone.py \
 
 # 说明:kmc_standalone.py会自动添加OUTPUT前缀
 # Note: kmc_standalone.py will automatically add OUTPUT prefix
-# 例如 / Example: --out-dir Pt_CO60_O40_800K_500Pa_R20_KMC2000
-# 实际输出 / Actual output: OUTPUT/Pt_CO60_O40_800K_500Pa_R20_KMC2000/OUTPUT/
+# 例如 / Example: --out-dir Pd_CO9_O18_473K_101325Pa_R50/KMC_2000steps
+# 实际输出 / Actual output: OUTPUT/Pd_CO9_O18_473K_101325Pa_R50/KMC_2000steps/OUTPUT/
 ```
 
 ### 步骤6:检查KMC输出并重新绘制图像 / Step 6: Check KMC Output and Regenerate Plots

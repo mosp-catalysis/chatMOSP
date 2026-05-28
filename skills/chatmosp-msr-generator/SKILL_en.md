@@ -96,7 +96,7 @@ When parameter-builder builds parameters, it will display parameters and 5 optio
 ### 使用已有代码(不写新代码)/ Use Existing Code (Do Not Write New Code):
 ```bash
 # MSR计算命令 / MSR calculation command
-python3 mosp-for-chatMOSP/utils/msr.py input.json OUTPUT_DIR/
+python3 mosp-for-chatMOSP/utils/msr.py --json path/to/input.json --output path/to/output/
 ```
 
 ### 📝 参数准备流程(重要)/ Parameter Preparation Process (Important):
@@ -172,6 +172,29 @@ Ensure input.json contains all required MSR parameters:
 
 **正确做法**:使用parameter-builder技能准备参数，它会根据新温度自动重新计算气体熵。
 **Correct Approach**: Use parameter-builder skill to prepare parameters; it will automatically recalculate gas entropy based on the new temperature.
+
+#### 步骤4:运行MSR计算 ⚠️ 关键步骤 / Step 4: Run MSR Calculation ⚠️ Critical Step
+
+**执行命令 / Execution Command**:
+```bash
+cd mosp-for-chatMOSP
+python3 utils/msr.py --json OUTPUT/{task_name}/input.json --output OUTPUT/{task_name}/
+cd -
+```
+
+**执行前检查 / Pre-execution Checks**:
+- ✅ input.json ready (Steps 1-3 completed) / input.json已准备完整
+- ✅ Gas entropy calculated at current temperature / 气体熵已根据当前温度计算
+- ✅ User confirmed parameters / 用户已确认参数
+
+**执行后验证 / Post-execution Validation**:
+```bash
+ls -lh OUTPUT/{task_name}/ini.xyz
+ls -lh OUTPUT/{task_name}/{task_name}_cluster.xyz
+```
+- ✅ `ini.xyz` MUST exist and be > 0KB, otherwise MSR failed / 必须存在且>0KB，否则失败
+- ✅ `{task_name}_cluster.xyz` MUST exist (for visualization) / 必须存在（用于可视化）
+- ⚠️ If missing, report error and suggest retrying with adjusted parameters / 若缺失则报错
 
 ### 生成的文件 / Generated Files:
 - `ini.xyz` - 优化后的团簇结构(包含所有原子)/ Optimized cluster structure (including all atoms)
@@ -287,14 +310,14 @@ Visualization images are automatically generated after MSR calculation:
 **步骤1:生成静态结构图 / Step 1: Generate Static Structure Image**
 ```bash
 # 生成PNG静态图片 / Generate PNG static image
-python3 utils/paint.py OUTPUT/{task_name}/{task_name}_cluster.xyz \
+cd mosp-for-chatMOSP && python3 utils/paint.py OUTPUT/{task_name}/{task_name}_cluster.xyz \
   --output OUTPUT/{task_name}/structure.png
 ```
 
 **步骤2:生成动态旋转动图 / Step 2: Generate Rotation Animation**
 ```bash
 # 生成GIF动图 / Generate GIF animation
-python3 utils/paint.py OUTPUT/{task_name}/{task_name}_cluster.xyz \
+cd mosp-for-chatMOSP && python3 utils/paint.py OUTPUT/{task_name}/{task_name}_cluster.xyz \
   --gif OUTPUT/{task_name}/rotation.gif
 ```
 

@@ -48,9 +48,11 @@
 
 ### 步骤1：创建KMC任务目录
 ```bash
-# 命名规则：{MSR任务名}_KMC{步数}/
-mkdir -p Pd_CO9_O18_473K_101325Pa_R50_KMC2000/INPUT
-mkdir -p Pd_CO9_O18_473K_101325Pa_R50_KMC2000/OUTPUT
+# 命名规则：在MSR目录下创建KMC子目录
+# MSR目录: OUTPUT/{msr_task_name}/
+# KMC目录: OUTPUT/{msr_task_name}/KMC_{步数}steps/
+mkdir -p OUTPUT/Pd_CO9_O18_473K_101325Pa_R50/KMC_2000steps/INPUT
+mkdir -p OUTPUT/Pd_CO9_O18_473K_101325Pa_R50/KMC_2000steps/OUTPUT
 ```
 
 ### 步骤2：准备输入文件（⚠️ 重要！）
@@ -132,8 +134,8 @@ python3 ../../kmc_standalone.py \
   --out-dir {任务目录名}
 
 # 说明：kmc_standalone.py会自动添加OUTPUT前缀
-# 例如：--out-dir Pt_CO60_O40_800K_500Pa_R20_KMC2000
-# 实际输出：OUTPUT/Pt_CO60_O40_800K_500Pa_R20_KMC2000/OUTPUT/
+# 例如：--out-dir Pd_CO9_O18_473K_101325Pa_R50/KMC_2000steps
+# 实际输出：OUTPUT/Pd_CO9_O18_473K_101325Pa_R50/KMC_2000steps/OUTPUT/
 ```
 
 ### 步骤6：检查KMC输出并重新绘制图像

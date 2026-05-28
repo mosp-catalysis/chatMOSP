@@ -83,7 +83,7 @@
 ### 使用已有代码(不写新代码):
 ```bash
 # MSR计算命令
-python3 mosp-for-chatMOSP/utils/msr.py input.json OUTPUT_DIR/
+python3 mosp-for-chatMOSP/utils/msr.py --json path/to/input.json --output path/to/output/
 ```
 
 ### 📝 参数准备流程(重要):
@@ -152,6 +152,29 @@ CO在1000K的熵值:
 **错误做法**:直接复制`MOSP_database/Pd-COoxidation.json`而不调整气体熵。只修改温度但Gas1_S和Gas2_S还是原来温度的值，没有重新计算。
 
 **正确做法**:使用parameter-builder技能准备参数，它会根据新温度自动重新计算气体熵。
+
+#### 步骤4:运行MSR计算 ⚠️ 关键步骤
+
+**执行命令**:
+```bash
+cd mosp-for-chatMOSP
+python3 utils/msr.py --json OUTPUT/{task_name}/input.json --output OUTPUT/{task_name}/
+cd -
+```
+
+**执行前检查**:
+- ✅ input.json 已准备完整（步骤1-3已完成）
+- ✅ 气体熵已根据当前温度计算
+- ✅ 用户已确认参数
+
+**执行后验证**:
+```bash
+ls -lh OUTPUT/{task_name}/ini.xyz
+ls -lh OUTPUT/{task_name}/{task_name}_cluster.xyz
+```
+- ✅ `ini.xyz` 必须存在且 > 0KB，否则MSR计算失败
+- ✅ `{task_name}_cluster.xyz` 必须存在（用于可视化）
+- ⚠️ 若文件缺失，返回错误信息并建议调整参数后重试
 
 ### 生成的文件:
 - `ini.xyz` - 优化后的团簇结构(包含所有原子)
@@ -255,14 +278,14 @@ MSR automatically generates visualization images after calculation completion:
 **步骤1:生成静态结构图 / Step 1: Generate Static Structure Image**
 ```bash
 # 生成PNG静态图片 / Generate PNG static image
-python3 utils/paint.py OUTPUT/{task_name}/{task_name}_cluster.xyz \
+cd mosp-for-chatMOSP && python3 utils/paint.py OUTPUT/{task_name}/{task_name}_cluster.xyz \
   --output OUTPUT/{task_name}/structure.png
 ```
 
 **步骤2:生成动态旋转动图 / Step 2: Generate Rotation Animation**
 ```bash
 # 生成GIF动图 / Generate GIF animation
-python3 utils/paint.py OUTPUT/{task_name}/{task_name}_cluster.xyz \
+cd mosp-for-chatMOSP && python3 utils/paint.py OUTPUT/{task_name}/{task_name}_cluster.xyz \
   --gif OUTPUT/{task_name}/rotation.gif
 ```
 

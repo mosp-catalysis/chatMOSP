@@ -59,6 +59,11 @@ When parameters are built, you MUST display them to the user and provide these 5
 
 ### 🔧 参数展示格式 / Parameter Display Format
 
+⚠️ **展示规则 / Display Rules：必须严格按照下方模板格式展示参数，不得自创格式！**
+⚠️ **单位说明 / Unit Note：Gas1_pp/Gas2_pp 是百分比(%)，不是压力值(Pa)。展示时必须带%号！**
+⚠️ **IMPORTANT: You MUST use the template format below exactly, do NOT create your own format!**
+⚠️ **Unit Note: Gas1_pp/Gas2_pp are percentages (%), NOT pressure values (Pa). MUST display with % sign!**
+
 **必须使用以下格式展示参数 / MUST use the following format to display parameters:**
 
 #### MSR参数展示格式 / MSR Parameter Display Format
@@ -808,6 +813,7 @@ S(eV/K) = (a × T^b) / 96485
 | CO | 85.142 | 0.147 |
 | NO | 93.121 | 0.143 |
 | H2O | 64.234 | 0.18665 |
+| NO2 | 93.02 | 0.1668 |
 
 **注意 / Note**:参数通过0~6000K范围拟合获得,无温度范围限制。/ Parameters obtained from 0~6000K range fitting, no temperature range limitation.
 
@@ -835,6 +841,24 @@ S(eV/K) = 218.2 / 96485 = 0.00226 eV/K
 - s1.S_gas: 第一种物种的气体熵值(eV/K)/ First species gas entropy (eV/K)
 - s2.S_gas: 第二种物种的气体熵值(eV/K)/ Second species gas entropy (eV/K)
 
+
+
+#### 3.5 Interactive Temperature Modification: Gas Entropy Recalculation / 交互式修改温度后的气体熵重算
+
+**When user selects "Modify" during parameter confirmation and changes temperature, gas entropy MUST be recalculated!**
+**当用户在参数确认阶段选择"修改"并改变温度时，必须重新计算气体熵！**
+
+Process / 处理流程:
+1. Get the user's new temperature T_new / 获取用户修改后的新温度值
+2. Use the formula from §3.1: S = (a × T^b) / 96485 to recalculate entropy for each gas / 使用§3.1公式重新计算每种气体的熵值
+3. Update Gas1_S and Gas2_S in input.json / 更新input.json中的Gas1_S和Gas2_S
+4. Present updated parameters (including new entropy values) to user / 展示更新后的参数给用户
+
+**Example / 示例**: Temperature change from 500K to 800K / 温度从500K改为800K
+- CO: S(500K) = 0.002200 eV/K → S(800K) = 0.002357 eV/K ✅ MUST update / 必须更新
+- O2: S(500K) = 0.002285 eV/K → S(800K) = 0.002446 eV/K ✅ MUST update / 必须更新
+
+**Verification / 验证**: Modified entropy values must match formula calculation from §3.1 / 修改后的熵值必须与§3.1公式计算结果一致。
 
 
 ### 4. 温度替换系统 / Temperature Replacement System

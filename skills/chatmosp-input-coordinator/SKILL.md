@@ -387,11 +387,12 @@ python3 utils/paint.py OUTPUT/{task_name}/{task_name}_cluster.xyz \
 KMC计算需要Wine环境运行Windows版`main.exe`引擎：
 ```bash
 # 检查Wine是否已安装
-which wine
+which wine64 || which wine
 
-# 如果未安装，请安装：
+# 如果未安装，请安装 (Ubuntu/Debian)：
+sudo dpkg --add-architecture i386
 sudo apt-get update
-sudo apt-get install wine
+sudo apt-get install wine64 wine32
 ```
 
 系统会自动检查Wine环境：

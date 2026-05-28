@@ -362,11 +362,12 @@ KMC计算需要Wine环境运行Windows版`main.exe`引擎：
 KMC calculation requires Wine environment to run Windows version `main.exe` engine:
 ```bash
 # 检查Wine是否已安装 / Check if Wine is installed
-which wine
+which wine64 || which wine
 
-# 如果未安装，请安装：/ If not installed, please install:
+# 如果未安装，请安装 (Ubuntu/Debian)：/ If not installed, please install (Ubuntu/Debian):
+sudo dpkg --add-architecture i386
 sudo apt-get update
-sudo apt-get install wine
+sudo apt-get install wine64 wine32
 ```
 
 系统会自动检查Wine环境：
