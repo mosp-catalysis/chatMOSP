@@ -1,618 +1,388 @@
-# Skill: chatmosp-literature-search
-
-## 🎯 技能简介
-
-从学术文献中搜索和提取MSR/KMC参数。当MOSP_database中没有匹配的参数时，使用此技能从文献中获取参数。
-
-## 🌐 语言匹配规则 / Language Matching Rules
-
-**重要提示 / IMPORTANT**: 根据用户输入的语言，选择合适的SKILL.md版本并匹配输出语言。
-**IMPORTANT**: Based on the language of user input, select the appropriate SKILL.md version and match the output language.
-
-### 语言匹配流程 / Language Matching Process
-
-1. **用户输入中文 / User inputs Chinese**:
-   - 阅读SKILL.md（中文版）/ Read SKILL.md (Chinese version)
-   - 使用中文输出回复 / Output response in Chinese
-
-2. **用户输入英文 / User inputs English**:
-   - 阅读SKILL_en.md（双语对照版）/ Read SKILL_en.md (Bilingual version)
-   - 使用英文输出回复 / Output response in English
-
+---
+name: chatmosp-literature-search
+description: |
+  chatMOSP 系统的学术文献检索器。当 MOSP_database 缺少匹配参数时，从开放获取期刊
+  （Nature Communications、Science Advances、PNAS 等）和其他学术资源搜索并提取
+  MSR/KMC 所需参数（表面能、吸附能、相互作用矩阵等）。
+  触发场景：parameter-builder 检测到关键参数缺失，且用户选择通过文献检索补全时。
 ---
 
-## 📋 输入与输出
+> **🌐 Language routing / 语言路由**
+> Detect the user's language from their latest message.
+> - **If the user writes in English** → read `SKILL_en.md` in this same skill
+>   directory and follow it as the authoritative instructions; respond in English;
+>   you do NOT need to read the rest of this Chinese document.
+> - **若用户使用中文** → 继续使用本文件（`SKILL.md`）作为权威指令，并用中文回复。
+> Always match the response language to the user's input language.
 
-### 输入
+# chatmosp-literature-search
 
-- **金属元素**（必需）：Pd, Pt, Au, Cu, Ni等
-- **气体体系**（必需）：CO+O2, H2+CO2, CO+H2等
-- **温度范围**（可选）：例如 300-500K
-- **压力范围**（可选）：例如 1-10 atm
+## 1. 核心职责
 
-### 输出
+1. 期刊搜索：按优先级访问 3 层期刊
+2. 文章检索：3 阶段（摘要→正文→SI）
+3. 参数提取：从表格中提取 E_ads、w、gamma 等
+4. 参数验证：完整性 + 合理性 + 一致性
+5. 返回带评分的结果给 parameter-builder
 
-- **参数表格**，包含：
-  - 表面能（各晶面）
-  - 吸附能（各晶面 + 各气体）
-  - 相互作用矩阵
-  - **参数来源**（DOI、文献标题）
-  - **参数完整性评分**（1-10分）
+## 2. 输入契约
 
----
+| 字段 | 必填 | 示例 |
+|------|------|------|
+| 金属元素 | 是 | Pd、Pt、Au、Cu、Ni |
+| 气体体系 | 是 | CO+O₂、H₂+CO₂、CO+H₂ |
+| 温度范围 | 否 | 300-500K |
+| 压力范围 | 否 | 1-10 atm |
 
-## 🔄 工作流程
+## 3. 输出契约
 
-### 整体流程图
+返回参数表格（JSON），包含：
+
+| 字段 | 说明 |
+|------|------|
+| 表面能 | 各晶面（100、110、111）的 γ（eV/Å²） |
+| 吸附能 | 各晶面 + 各气体的 E_ads（eV） |
+| 相互作用矩阵 | CO-CO、CO-O、O-O 的 w（eV） |
+| 参数来源 | DOI、文献标题、作者 |
+| 完整性评分 | 1-10 分 |
+
+> **⚠️ 文献搜索不返回气体熵**。返回后 parameter-builder 必须按 §3.1 公式重算。
+
+## 4. 工作流程
 
 ```
-输入（金属 + 气体） → 期刊搜索 → 文章检索 → 参数提取 → 参数验证 → 输出（参数表格）
+输入（金属 + 气体）
+  → 期刊搜索（按优先级 3 层）
+  → 文章检索（3 阶段：摘要→正文→SI）
+  → 参数提取（pdftotext + 关键词搜索）
+  → 参数验证（完整性、合理性、一致性）
+  → 输出（带评分的参数表）
 ```
 
-### 流程说明
+## 5. 期刊搜索优先级
 
-**步骤1：期刊搜索**（按优先级）
-- 第1层：顶刊（Science, Nature, JACS, Angewandte Chemie等）
-- 第2层：开放获取期刊（Nature Communications, Science Advances, PNAS等）
-- 第3层：预印本平台（arXiv, ChemRxiv等）
+### 第 1 层：顶刊（优先但可能无法获取）
 
-**步骤2：文章检索**（3个阶段）
-- 阶段1：摘要检索（确认相关性）
-- 阶段2：正文检索（查找参数表格）
-- 阶段3：SI检索（补充参数）
+- Science、Nature、JACS、Angewandte Chemie、PRL、JCP
+- 策略：DOI 解析 → 摘要 → 正文 → SI
+- 遇到 API 限制或 CAPTCHA → **立即跳到第 2 层**
 
-**步骤3：参数提取**
-- 提取表面能
-- 提取吸附能
-- 提取相互作用矩阵
+### 第 2 层：完全开放获取期刊（**推荐**）
 
-**步骤4：参数验证**
-- 检查完整性
-- 检查合理性
-- 检查一致性
+- **Nature Communications**
+- **Science Advances**
+- **PNAS**
+- **ACS Central Science**
+- **Chemical Science**
 
-**步骤5：输出结果**
-- 展示参数表格
-- 提供参数来源
-- 提供完整性评分
+优势：完全免费、质量高、SI 完整
 
----
+### 第 3 层：预印本平台（最后选择）
 
-## ⚠️ 重要限制与机制
+- arXiv、ChemRxiv、bioRxiv
+- 注意：未同行评审，参数可能不准确，需要用户确认
 
-### 超时机制
+## 6. 工具选择
 
-**总搜索时间限制**：5分钟
+### 6.1 优先用 openclaw_browser
 
-**单篇文章检索限制**：2分钟
-
-**超时处理**：
-- 如果总时间超过5分钟，立即停止搜索
-- 返回已找到的参数（即使不完整）
-- 向用户说明情况
-
-### 降级方案
-
-**如果搜索了5篇文章还没有找到完整参数**：
-
-1. 向用户说明情况：
-   ```
-   我已经搜索了5篇文献，但未能找到完整的参数。
-   以下是找到的部分参数：
-   - 表面能：✅ 已找到
-   - 吸附能：❌ 未找到
-   - 相互作用矩阵：❌ 未找到
-   
-   建议选项：
-   1. 使用相似金属的参数作为参考
-   2. 提供已知参数来源（DOI或文献标题）
-   3. 使用默认/测试参数
-   ```
-
-2. 提供替代方案
-
----
-
-## 📚 期刊搜索平台优先级
-
-### 第1层：顶刊（优先但可能无法获取）
-
-**期刊列表**：
-- Science (science.org)
-- Nature (nature.com)
-- JACS (Journal of the American Chemical Society)
-- Angewandte Chemie
-- PRL (Physical Review Letters)
-- JCP (Journal of Chemical Physics)
-
-**获取策略**：
-- 检查是否有机构订阅（通过DOI解析）
-- 遇到API限制或访问受限 → 直接跳到第2层
-- 无法获取 → 跳过，进入第2层
-- 可以获取 → 检索摘要 → 正文 → SI
-
-**重要**：不要浪费时间在无法访问的资源上，优先搜索开放获取资源。
-
-### 第2层：完全开放获取期刊（推荐）
-
-**期刊列表**：
-- Nature Communications (nature.com/ncomms)
-- Science Advances (science.org/journal/sciadv)
-- PNAS (pnas.org)
-- ACS Central Science
-- Chemical Science (RSC)
-
-**优势**：
-- 完全免费，无需订阅
-- 质量高，参数可信
-- SI通常包含完整数据
-
-### 第3层：预印本平台（最后选择）
-
-**平台列表**：
-- arXiv (arxiv.org)
-- ChemRxiv (chemrxiv.org)
-- bioRxiv (biorxiv.org)
-
-**注意事项**：
-- 未经过同行评审
-- 参数可能不准确
-- 需要用户确认
-
----
-
-## 🔧 期刊搜索工具选择
-
-### ⚠️ 重要提示：工具选择
-
-**不要使用web_fetch**：
-- ❌ 期刊网站常有访问限制（403错误、CAPTCHA验证）
-- ❌ web_fetch容易失败
-- ❌ 无法执行JavaScript，无法获取动态加载的内容
-
-**优先使用openclaw_browser**：
-- ✅ 支持JavaScript渲染
+- ✅ 支持 JS 渲染
 - ✅ 支持登录态
 - ✅ 支持交互操作
-- ✅ 更适合期刊网站访问
+- ✅ 适合期刊网站访问
 
-**降级方案**：
-- ✅ 如果openclaw_browser不可用，可以尝试opencli CLI工具
-- 📖 详细指南：参考 `web-tools-guide` 技能文档
+### 6.2 不要用 web_fetch
 
----
+- ❌ 期刊网站常有限制（403、CAPTCHA）
+- ❌ 无法执行 JS
+- ❌ 拿不到动态加载内容
 
-## 🔍 详细文献检索流程
+### 6.3 降级
 
-### 1. 期刊选择与检索
+如果 openclaw_browser 不可用 → 试 opencli CLI → 详见 `web-tools-guide`
 
-**期刊分类**：
+## 7. 详细文献检索流程
 
-**开放获取期刊**（无需付费）：
-- Nature Communications
-- Science Advances
-- PNAS (Proceedings of the National Academy of Sciences)
-- ACS Central Science
-- Chemical Science
+### 步骤 1：构建搜索关键词
 
-**付费期刊**（需要访问权限）：
-- Science
-- Nature
-- JACS (Journal of the American Chemical Society)
-- Angewandte Chemie
+**✅ 正确格式**（必须用）：
 
----
-
-### 2. 单个期刊检索流程
-
-**步骤1：构建搜索关键词**
-
-根据体系构建搜索关键词：
-
-**✅ 正确格式：**
 ```
-"关键词1" AND "关键词2" AND "关键词3"
+"keyword1" AND "keyword2" AND "keyword3"
 ```
 
-**示例：**
-- 示例1：Cu团簇在一氧化碳氧化环境下 → 搜索 `"Cu" AND "CO oxidation"`
-- 示例2：Pd团簇在CO氧化环境下 → 搜索 `"Pd" AND "CO oxidation"`
-- 示例3：Pt团簇在氢气环境下 → 搜索 `"Pt" AND "H2"`
+**示例**：
 
-**⚠️ 重要提示：禁止使用错误的格式！**
+- `Cu` 团簇在 CO 氧化环境 → `"Cu" AND "CO oxidation"`
+- `Pd` 团簇在 CO 氧化环境 → `"Pd" AND "CO oxidation"`
+- `Pt` 团簇在 H₂ 环境 → `"Pt" AND "H2"`
 
-**❌ 错误格式（禁止使用）：**
+**❌ 错误格式**（禁止）：
+
 ```
 Pd CO oxidation
 ```
-**问题：** 空格分隔的格式会导致搜索结果不准确，搜索系统会将整个短语作为一个关键词搜索，而不是分别搜索"Pd"和"CO oxidation"两个关键词。
 
-**✅ 正确格式（必须使用）：**
-```
-"Pd" AND "CO oxidation"
-```
-**优点：** 每个关键词用双引号包裹，用AND连接，确保搜索系统正确理解关键词的含义，返回更准确的搜索结果。
+空格分隔会导致搜索系统把整个短语当一个关键词，结果不准确。
 
-**步骤2：使用openclaw_browser访问期刊网站**
+### 步骤 2：访问期刊网站
 
-- 访问期刊的搜索页面
-- 输入搜索关键词
-- 搜索结果默认按相关性排列
+- 用 openclaw_browser 进入期刊搜索页
+- 输入关键词
+- 默认按相关性排序
 
-**步骤3：获取前10个搜索结果**
+### 步骤 3：获取前 10 个结果
 
-- 只检查前10个结果（相关性最高）
-- 输出前10名的文献名称、DOI、摘要（可选）
+- 只检查前 10 个（相关性最高）
+- 输出标题、DOI、摘要（可选）
 
----
+### 步骤 4：初步筛选（基于题目）
 
-### 3. 初步筛选（基于题目）
+筛选标准：
 
-**筛选标准**：
-1. **反应气氛体系匹配**：必须是相同的反应气氛（如CO氧化、水汽变换等）
-2. **金属体系匹配**：必须是相同的金属（如Pd、Pt、Cu等），排除合金体系
+1. 反应气氛体系匹配（必须是 CO 氧化、WGSR 等目标反应）
+2. 金属体系匹配（必须是 Pd、Pt、Cu 等目标金属，排除合金）
 
-**筛选结果**：
-- 输出被筛选后的文献列表
-- 标注每篇文献的筛选理由
+输出筛选后的文献列表 + 筛选理由
 
----
+### 步骤 5：用户交互
 
-### 4. 用户交互
+请选择下一步：
 
-**询问用户选择**：
+1. 仔细检查全部筛选后的文章
+2. 仔细检查某一篇（用户指定）
+3. 换另一期刊
 
-请选择下一步操作：
-1. **仔细检查这些被筛选的全部文章** - 对所有被筛选的文章进行详细检查
-2. **仔细检查某一篇文章** - 只检查用户指定的某一篇文章
-3. **换成另一期刊检索** - 放弃当前期刊，换另一个期刊
+### 步骤 6：详细检查文章
 
----
+**步骤 6.1**：检查正文
 
-### 5. 详细检查文章内容
+- 确认金属体系匹配
+- 确认反应气氛匹配
+- 是否有参数表格
 
-**检查流程**：
+**步骤 6.2**：没有参数 → 下载 SI
 
-**步骤1：检查文章正文**
-- 确认是相同的金属体系
-- 确认是相同的反应气氛
-- 检查正文是否包含参数表格
+- 参数只可能存在于文字和表格，**不会**在图像中
+- 下载 SI PDF：`si_{first_author}_{year}.pdf`
+- 同作者同年多篇：`si_smith_2023a.pdf` / `b` / `c`
 
-**步骤2：如果没有参数，下载SI**
-- 参数只可能存在于文字和表格中，不会出现在图像中
-- 下载SI文件（PDF格式）
+**步骤 6.3**：检查 SI
 
-**步骤3：检查SI文件**
-- 搜索关键词：Table, Supplementary Table, S1, S2等
+- 搜索关键词：Table、Supplementary Table、S1、S2
 - 提取参数表格
 
----
+### 步骤 7：参数提取
 
-### 6. 参数提取与确认
+**步骤 7.1**：下载 SI
 
-**步骤1：提取参数**
-
-从文章正文或SI中提取以下参数：
-- 表面能（各晶面）
-- 吸附能（各晶面 + 各气体）
-- 相互作用矩阵
-- 参数来源（DOI、文献标题）
-
-**步骤2：向用户展示参数**
-
-```
-📊 从文献中提取到以下参数：
-
-【文献信息】
-- 标题：xxx
-- DOI：xxx
-- 期刊：xxx
-
-【参数表格】
-- 表面能：...
-- 吸附能：...
-- 相互作用矩阵：...
-
-【参数完整性评分】
-- 评分：8/10
-- 说明：参数较完整，可以使用
+```bash
+# 用 openclaw_browser 访问文章页下载 SI
 ```
 
-**步骤3：询问用户是否使用**
-
-请选择：
-1. **使用这些参数** - 将参数传递给chatmosp-parameter-builder
-2. **拒绝，继续检索** - 继续检索下一篇文章
-3. **取消任务** - 结束文献检索
-
----
-
-### 7. 一个期刊检索失败的处理
-
-**情况**：一个期刊的前10篇被筛选的文章都没找到参数
-
-**询问用户**：
-
-```
-⚠️ 在{期刊名称}的前10篇相关文章中未找到参数
-
-请选择：
-1. **更换期刊** - 换另一个期刊继续检索
-2. **取消任务** - 如果所有期刊都没有，建议更换体系或用户提供参数
-```
-
----
-
-### 8. 所有期刊检索失败的处理
-
-**情况**：所有期刊都检索完毕，仍未找到参数
-
-**建议用户**：
-1. 更换金属或气体体系
-2. 用户自己提供参数
-3. 取消任务
-
----
-
-## 🔍 文章检索流程
-
-### 阶段1：摘要检索（免费，快速）
-
-**目的**：确认文章相关性
-
-**检索内容**：
-1. 金属元素是否匹配
-2. 反应环境是否匹配（气体、温度范围）
-3. 研究类型是否匹配（表面催化、团簇）
-
-**判断标准**：
-- ✅ 匹配 → 进入阶段2
-- ❌ 不匹配 → 检索下一篇文章
-
-**示例**：
-```
-文章标题："CO oxidation on Pd nanoparticles"
-摘要内容："We studied CO oxidation on Pd(111) and Pd(100) surfaces..."
-判断结果：✅ 匹配（金属=Pd，气体=CO+O2，研究类型=表面催化）
-```
-
-### 阶段2：正文检索（需要访问权限）
-
-**目的**：提取MSR/KMC参数
-
-**检索位置**：
-1. Methods/Experimental Section - 实验方法和参数
-2. Results - 计算结果和参数
-3. Tables - 参数表格
-4. Figures - 参数图表
-
-**判断标准**：
-- 如果正文明确提到参数表格 → 下载SI
-- 如果正文没有提到，但文章相关性很高 → 仍然下载SI检查
-- 如果正文完全没有提到参数 → 跳过SI，检索下一篇文章
-
-**重要**：正文没提到参数表格不代表没有，如果相关性高应该下载SI检查。
-
-### 阶段3：SI检索（补充信息）
-
-**目的**：获取完整参数
-
-**检索位置**：
-1. Supplementary Tables - 完整参数表
-2. Supplementary Methods - 详细方法
-3. Supplementary Data - 原始数据
-
-**SI文件命名格式**：
-- 格式：`si_{first_author}_{year}.pdf`
-- 示例：`si_chee_2020.pdf`, `si_ghosh_2022.pdf`
-- 如果同一作者同年有多篇文章：`si_smith_2023a.pdf`, `si_smith_2023b.pdf`
-
----
-
-## 📊 MSR需求的数据清单
-
-### 基本参数
-
-- ✅ 金属元素 - Element (Pd, Pt, Au, Cu等)
-- ✅ 温度 - Temperature (K)
-- ✅ 压力 - Pressure (Pa)
-- ✅ 团簇半径 - Radius (Å)
-- ✅ 气体种类 - Gas species (CO, O2, H2等)
-- ✅ 气体分压 - Partial pressures (%)
-
-### 表面参数（每个晶面）
-
-- ✅ 表面能 - Surface energy (eV/Å²)
-  - (100), (110), (111), (211), (311)等
-
-### 吸附参数（每个晶面 + 每种气体）
-
-- ✅ 吸附能 - Adsorption energy E_ads (eV)
-  - 例：CO在Pd(111)的吸附能
-  - 例：O2在Pd(100)的吸附能
-
-### 相互作用参数
-
-- ✅ 相互作用矩阵 - Interaction matrix (eV)
-  - CO-CO相互作用
-  - CO-O相互作用
-  - O-O相互作用
-
-### 气体参数
-
-- ✅ 气体熵 - Gas entropy (eV/K)
-  - 可通过公式计算（温度依赖）
-  - 或从文献中提取
-
----
-
-## 📝 参数提取方法
-
-### 步骤1：下载SI文件
-
-使用browser工具访问文章页面，下载SI文件。
-
-### 步骤2：转换PDF为文本
+**步骤 7.2**：PDF 转文本
 
 ```bash
 pdftotext si_{author}_{year}.pdf si_{author}_{year}.txt
 ```
 
-### 步骤3：搜索参数表格
+**步骤 7.3**：搜索参数表格关键词
 
-**搜索关键词**：
 - Table S, Supplementary Table
 - adsorption energy, E_ads, binding energy
 - surface energy, γ, surface tension
 - interaction parameter, interaction matrix
 
-### 步骤4：读取参数表格
+**步骤 7.4**：用 `read` 工具读取文本，定位参数表格
 
-使用read工具读取文本文件，找到参数表格。
+**步骤 7.5**：从表格中提取数值，注意单位转换
 
-### 步骤5：提取参数
+**步骤 7.6**：验证参数
 
-从表格中提取参数数值，注意单位转换。
+- 是否在合理范围内
+- 是否符合物理规律
+- 是否一致
 
-### 步骤6：验证参数
+### 步骤 8：向用户展示参数
 
-- 检查参数是否在合理范围内
-- 检查参数是否符合物理规律
-- 检查参数是否一致
+```
+📊 从文献中提取到以下参数：
 
----
+【文献信息】
+- 标题：{title}
+- DOI：{doi}
+- 期刊：{journal}
 
-## 🎯 参数完整性评分标准
+【参数表格】
+- 表面能：{values}
+- 吸附能：{values}
+- 相互作用矩阵：{values}
 
-### 评分标准（10分制）
+【参数完整性评分】
+- 评分：{score}/10
+- 说明：{description}
+
+请选择：
+1. ✅ 使用这些参数 → 传给 parameter-builder
+2. ❌ 拒绝，继续检索下一篇
+3. ❌ 取消任务
+```
+
+## 8. 文章检索 3 阶段
+
+| 阶段 | 目的 | 检索内容 |
+|------|------|----------|
+| 1. 摘要 | 确认相关性 | 金属、反应环境、研究类型 |
+| 2. 正文 | 找参数表格 | Methods、Results、Tables、Figures |
+| 3. SI | 补全参数 | Supplementary Tables、Methods、Data |
+
+> ⚠️ **重要**：正文没提到参数不代表 SI 没有。如果文章相关性高，仍要下载 SI 检查。
+
+## 9. MSR 需求的数据清单
+
+### 基本参数
+
+- ✅ 金属元素、温度、压力
+- ✅ 团簇半径、气体种类、气体分压
+
+### 表面参数（每个晶面）
+
+- ✅ 表面能 γ（eV/Å²）：(100)、(110)、(111)、(211)、(311) 等
+
+### 吸附参数（每个晶面 + 每种气体）
+
+- ✅ 吸附能 E_ads（eV）：例 CO 在 Pd(111)、O₂ 在 Pd(100)
+
+### 相互作用参数
+
+- ✅ w 矩阵（eV）：CO-CO、CO-O、O-O
+
+### 气体参数
+
+- ✅ 气体熵（eV/K）：可通过公式计算（温度依赖）或从文献提取
+
+> ⚠️ 文献搜索不返回气体熵，parameter-builder 必须自动计算
+
+## 10. 参数完整性评分
+
+### 分值表
 
 | 参数类型 | 分值 | 说明 |
-|---------|------|------|
-| 表面能 | 2分 | 至少包含(100), (110), (111)三个晶面 |
-| 吸附能 | 3分 | 每种气体在各晶面的吸附能 |
-| 相互作用矩阵 | 3分 | CO-CO, CO-O, O-O相互作用 |
-| 参数来源 | 1分 | DOI、文献标题、作者信息 |
-| 参数合理性 | 1分 | 参数在合理范围内，符合物理规律 |
+|----------|------|------|
+| 表面能 | 2 分 | 至少 (100)、(110)、(111) 三个晶面 |
+| 吸附能 | 3 分 | 每种气体在各晶面 |
+| 相互作用矩阵 | 3 分 | CO-CO、CO-O、O-O |
+| 参数来源 | 1 分 | DOI、标题、作者 |
+| 参数合理性 | 1 分 | 在合理范围内、符合物理规律 |
 
-**⚠️ 注意：气体熵不在此评分范围内**。文献搜索不返回气体熵值(Gas_S/S_gas)。无论完整性评分多少，返回参数后，`chatmosp-parameter-builder`技能必须根据温度自动计算气体熵值。
+### 等级处理
 
-### 完整性等级
-
-- **9-10分**：完整，可直接使用
-- **7-8分**：较完整，可以使用，但需要用户确认
-- **5-6分**：部分完整，需要补充参数
-- **3-4分**：不完整，建议使用替代方案
-- **1-2分**：极不完整，不推荐使用
-
----
-
-**注意**：相互作用参数转换规则已经移到chatmosp-parameter-builder技能中，请参考：
-- **chatmosp-parameter-builder/SKILL.md** 的 "#### 2.4 相互作用参数转换" 章节
-- **chatmosp-parameter-builder/SKILL_en.md** 的 "#### 2.4 相互作用参数转换 / Interaction Parameter Conversion" 章节
-
----
-
-## 💡 文献搜索经验教训
-
-### 教训1：关键词选择策略
-
-**问题**：关键词太具体，过滤掉了相关文章
-
-**解决方案**：
-- 先用宽泛关键词搜索（如`"Pd" AND "CO oxidation"`）
-- 再用具体关键词筛选（如`"adsorption energy"`）
-- 不要只搜索参数名称，要搜索文章主题
-
-### 教训2：DOI优先原则
-
-**问题**：搜索不到目标文章
-
-**解决方案**：
-- 优先使用已知的DOI或文章标题
-- 如果有DOI，直接访问DOI
-- 不要只依赖关键词搜索
-
-### 教训3：多平台搜索
-
-**问题**：单一平台搜索结果有限
-
-**解决方案**：
-- 不局限于单一期刊网站
-- 搜索多个期刊平台
-- 使用开放获取期刊优先
-
-### 教训4：不要浪费时间在无法访问的资源上
-
-**问题**：在访问受限的文章上浪费时间
-
-**解决方案**：
-- 遇到API限制或访问受限 → 立即跳到第2层
-- 遇到CAPTCHA验证 → 跳过，进入下一层
-- 优先搜索开放获取资源
-
-### 教训5：正文没提到参数不代表SI没有
-
-**问题**：正文没有提到参数表格，就跳过了SI
-
-**解决方案**：
-- 如果文章相关性很高，仍然下载SI检查
-- SI通常包含完整参数表格
-- 不要仅根据正文判断
-
----
-
-## 📋 实际操作示例（精简版）
-
-### 示例：搜索Pd-CO-O体系参数
-
-**用户输入**："show me the Pd cluster under atmosphere of CO and O2"
-
-1. **提取需求**：金属=Pd, 气体=[CO, O₂], 需要：表面能、E_ads、w矩阵
-2. **检查MOSP_database**：未找到匹配的example文件
-3. **启动文献搜索**：平台=Nature Communications（开放获取），关键词=`"Pd" AND "CO oxidation" AND "adsorption energy"`，工具=browser
-4. **找到文章**：找到相关文章，DOI确认
-5. **下载SI**：保存到`mosp-for-chatMOSP/literature/`
-6. **提取参数**：使用pdftotext→搜索"Supplementary Table"→提取E_ads、w值
-7. **验证**：计算完整性评分，标注缺失项
-8. **展示结果**：展示找到的参数，标注缺失项（如表面能），建议补充方案
-
-**关键点**：
-- 始终从开放获取期刊开始
-- 文献搜索不返回气体熵，parameter-builder必须计算
-- 文献中的相互作用参数可能是KMC格式，需转换为MSR格式
-
----
-
-## 🔗 与其他技能的协作
-
-### 被以下技能调用
-
-- **chatmosp-parameter-builder**：当MOSP_database中没有匹配参数时，调用此技能
-
-### 调用以下工具
-
-- **openclaw_browser**：期刊网站访问、SI下载
-- **pdftotext**：PDF转文本
-- **read**：读取文本文件
-
----
-
-## 📖 参考文档
-
-- **web-tools-guide**：网络工具使用指南
-- **chatmosp-parameter-builder**：参数构建器技能
-- **MOSP_database**：参数库
-
----
-
-## 📝 版本历史
-
-| 日期 | 版本 | 说明 |
+| 评分 | 等级 | 处理 |
 |------|------|------|
-| 2026-05-14 | v1.0 | 初始版本，从chatmosp-parameter-builder中提取 |
+| 9-10 | 完整 | 直接使用 |
+| 7-8 | 较完整 | 用户确认缺失项后使用 |
+| 5-6 | 部分完整 | 补充缺失参数 |
+| 3-4 | 不完整 | 用相似金属参数参考 |
+| 1-2 | 极不完整 | 不推荐使用 |
 
----
+> ⚠️ **气体熵不在评分范围**。无论评分多少，parameter-builder 都必须按公式重算气体熵。
 
-**技能创建者**：OpenClaw Agent
-**创建日期**：2026-05-14
-**技能位置**：/root/.openclaw/workspace/skills/chatmosp-literature-search/
+## 11. 超时与降级
+
+### 11.1 超时机制
+
+- 总时间限制：5 分钟
+- 单篇文章限制：2 分钟
+- 超时立即停止，返回已找到的参数（即使不完整）
+
+### 11.2 降级方案
+
+搜索 5 篇文献无完整参数时：
+
+```
+⚠️ 我已经搜索了 5 篇文献，但未能找到完整的参数。
+- 表面能：✅ 已找到
+- 吸附能：❌ 未找到
+- 相互作用矩阵：❌ 未找到
+
+建议：
+1. 使用相似金属的参数作为参考
+2. 提供已知参数来源（DOI 或文章标题）
+3. 使用默认/测试参数
+```
+
+### 11.3 一个期刊失败的提示
+
+```
+⚠️ 在{期刊}的前 10 篇相关文章中未找到参数
+
+请选择：
+1. 更换期刊
+2. 取消任务（如果所有期刊都没有，建议更换体系或用户提供参数）
+```
+
+## 12. 经验教训
+
+- **教训 1：关键词选择**
+  - 先用宽泛关键词（`"Pd" AND "CO oxidation"`）
+  - 再用具体关键词筛选（`"adsorption energy"`）
+  - 不要只搜参数名，要搜文章主题
+- **教训 2：DOI 优先**
+  - 优先用已知 DOI 或标题
+  - 有 DOI 直接访问
+  - 不只依赖关键词搜索
+- **教训 3：多平台搜索**
+  - 不局限单一期刊
+  - 优先用开放获取期刊
+- **教训 4：不要浪费时间在访问受限资源**
+  - API 限制或 CAPTCHA → 立即跳下一层
+  - 优先开放获取
+- **教训 5：正文没提参数不代表 SI 没有**
+  - 文章相关性高 → 仍下载 SI
+  - SI 通常含完整参数表
+
+## 13. 跨技能衔接
+
+- **被调用**：parameter-builder 检测到关键参数缺失 + 用户选文献检索
+- **调用工具**：openclaw_browser、pdftotext、read
+- **返回给 parameter-builder**：带评分的参数表
+
+## 14. 依赖
+
+- **chatmosp-parameter-builder** — 调用方
+- **openclaw_browser** — 期刊网站访问、SI 下载
+- **pdftotext** — PDF 转文本
+- **read** — 读取文本文件
+
+## 15. 文件结构
+
+```
+chatmosp-literature-search/
+├── SKILL.md       # 本文件（中文）
+└── SKILL_en.md    # 英文版
+```
+
+## 16. 实际操作示例
+
+```
+用户：show me the Pd cluster under atmosphere of CO and O2
+
+1. 提取需求：metal=Pd, gases=[CO, O₂]
+2. 检查 MOSP_database：无匹配
+3. parameter-builder 提示并提供 4 选项 → 用户选文献检索（开放获取期刊）
+4. 启动本技能：
+   - 平台：Nature Communications
+   - 关键词：`"Pd" AND "CO oxidation" AND "adsorption energy"`
+   - 工具：openclaw_browser
+5. 找到相关文章，确认 DOI
+6. 下载 SI → 保存到 literature/
+7. pdftotext 转换 → 搜 "Supplementary Table" → 提取参数
+8. 验证：完整性评分
+9. 展示结果 + 标注缺失项
+10. 用户确认 → 传给 parameter-builder 组装 input.json
+
+关键点：
+- 始终从开放获取期刊开始
+- 文献搜索不返回气体熵，parameter-builder 必须重算
+- 相互作用参数可能是 KMC 格式，需 MSR/KMC 格式转换（见 parameter-builder §9）
+```

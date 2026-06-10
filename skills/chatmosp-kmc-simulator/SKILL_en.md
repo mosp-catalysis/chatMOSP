@@ -1,441 +1,303 @@
-# Skill: chatmosp-kmc-simulator (Bilingual Version)
-
-## 🌐 语言匹配规则 / Language Matching Rules
-
-**重要提示 / IMPORTANT**: 根据用户输入的语言,选择合适的SKILL.md版本并匹配输出语言。
-**IMPORTANT**: Based on the language of user input, select the appropriate SKILL.md version and match the output language.
-
-### 语言匹配流程 / Language Matching Process
-
-1. **用户输入中文 / User inputs Chinese**:
-   - 阅读SKILL.md(中文版)/ Read SKILL.md (Chinese version)
-   - 使用中文输出回复 / Output response in Chinese
-
-2. **用户输入英文 / User inputs English**:
-   - 阅读SKILL_en.md(双语对照版)/ Read SKILL_en.md (Bilingual version)
-   - 使用英文输出回复 / Output response in English
-
-### 语言识别标准 / Language Recognition Standard
-
-- 如果用户输入中包含中文字符,则识别为中文输入
-- If user input contains Chinese characters, recognize as Chinese input
-- 否则识别为英文输入
-- Otherwise recognize as English input
-
+---
+name: chatmosp-kmc-simulator
+description: |
+  KMC (Kinetic Monte Carlo) simulation engine of the chatMOSP system. Invokes
+  kmc_standalone.py via Wine to run the Windows main.exe engine, executes
+  catalyst surface reaction kinetic simulations, and produces TOF / coverage
+  results. Uses utils/plot_kmc_data.py to generate coverage.png, coverage_steps.png,
+  tof.png, and tof_time.png (4 images total).
+  Triggers: after parameter-builder has built KMC parameters and the user has
+  confirmed via the 5-option prompt, this skill executes the KMC simulation.
 ---
 
-## 📖 术语定义 / Terminology Definitions
+# chatmosp-kmc-simulator
 
-**MOSP (Multiscale Operando Simulation Package)** - Multiscale Operando simulation package
-- Multiscale simulation system for metal catalyst surface reactions
-- Integrates structure generation and kinetic simulation
+## 1. Core Responsibilities
 
-**MSR (Multiscale Structure Reconstruction)** - Multiscale Structure Reconstruction model
-- Metal cluster structure generation based on Wulff construction
-- Calculate equilibrium morphology with different crystal face ratios
+1. Check and manage Wine environment (KMC engine dependency)
+2. Prepare KMC input files (copy template from MOSP_database + user-specified steps/T/pp)
+3. Execute KMC simulation and monitor progress
+4. Warn on large step counts (≥ 20M steps)
+5. Generate TOF / coverage plots and CSV data
+6. Auto-regenerate plots if missing or on user request
 
-**KMC (Kinetic Monte Carlo)** - Kinetic Monte Carlo model
-- Simulate kinetic processes of surface reactions
-- Calculate kinetic parameters such as TOF and coverage
+## 2. Prerequisites
 
----
+- ✅ MSR task completed (if starting from MSR cluster)
+- ✅ parameter-builder has built KMC parameters
+- ✅ User has confirmed via the 5-option prompt (see parameter-builder)
+- ✅ Wine environment installed (check on first run, prompt install if missing)
+- ✅ MSR-generated `ini.xyz` copied to KMC task directory (if applicable)
+- ❌ DO NOT bypass parameter-builder and build KMC parameters manually
+- ❌ DO NOT reuse MSR's `input.json` — KMC must independently prepare complete parameters
 
-## 📋 技能概览 / Overview
+## 3. Wine Environment
 
-**技能名称 / Skill Name**: `chatmosp-kmc-simulator`
-**技能类型 / Skill Type**: KMC Computation Engine
-**核心职责 / Core Responsibility**: Kinetic Monte Carlo Simulation
+The KMC engine is the Windows `main.exe`, requiring Wine to run.
 
-### 技能定位 / Skill Positioning
-KMC模拟器是chatMOSP系统的动力学计算引擎,负责:
-The KMC simulator is the kinetic calculation engine of the chatMOSP system, responsible for:
+### 3.1 Check Wine
 
-1. **KMC模拟执行 / KMC Simulation Execution**: 执行催化剂表面反应动力学模拟
-   Execute catalyst surface reaction kinetics simulation
-2. **资源保护机制 / Resource Protection Mechanism**: 4000万步警告和自动资源保护
-   40 million steps warning and automatic resource protection
-3. **结果分析与可视化 / Result Analysis and Visualization**: 提取TOF、覆盖度、反应路径
-   Extract TOF, coverage, reaction paths
-
-### 核心安全特性 / Core Security Features
-- ⚠️ **4000万步警告 / 40 Million Steps Warning**: 当KMC步数超过4000万时发出警告
-  Warn when KMC steps exceed 40 million
-- ✅ **资源保护 / Resource Protection**: 自动监控内存和CPU使用
-  Automatically monitor memory and CPU usage
-- 📊 **进度报告 / Progress Reporting**: 实时监控模拟进度
-  Real-time monitoring of simulation progress
-
-## 🎯 核心功能 / Core Functions
-
-### 1. KMC模拟执行 / KMC Simulation Execution
-- 调用 mosp-for-chatMOSP KMC引擎 / Call mosp-for-chatMOSP KMC engine
-- 准备KMC输入文件(KMC-input.json)/ Prepare KMC input file (KMC-input.json)
-- 捕获动力学数据 / Capture kinetic data
-
-### 2. 资源保护与警告 / Resource Protection and Warnings
-```
-步数监控 → 超过阈值警告 → 用户确认 → 继续执行
-Step monitoring → Threshold warning → User confirmation → Continue execution
-```
-
-### 3. 结果处理与分析 / Result Processing and Analysis
-- 解析TOF(周转频率)数据 / Parse TOF (Turnover Frequency) data
-- 提取表面覆盖度信息 / Extract surface coverage information
-- 生成反应路径分析 / Generate reaction path analysis
-- 创建可视化图表(覆盖度图等)/ Create visual charts (coverage graphs, etc.)
-
----
-
-## 🚀 快速开始:KMC计算正确流程 / Quick Start: KMC Calculation Correct Process
-
-### 前提条件 / Prerequisites:
-- MSR任务已完成,生成了ini.xyz结构文件 / MSR task completed, ini.xyz structure file generated
-- input.json包含完整的KMC参数 / input.json contains complete KMC parameters
-
-### 步骤1:准备KMC任务目录 / Step 1: Prepare KMC Task Directory
 ```bash
-# 命名规则：在MSR目录下创建KMC子目录 / Naming rule: Create KMC subdirectory under MSR directory
-# MSR目录 / MSR directory: OUTPUT/{msr_task_name}/
-# KMC目录 / KMC directory: OUTPUT/{msr_task_name}/KMC_{步数}steps/ / KMC_{steps}steps/
-mkdir -p OUTPUT/Pd_CO9_O18_473K_101325Pa_R50/KMC_2000steps/INPUT
-mkdir -p OUTPUT/Pd_CO9_O18_473K_101325Pa_R50/KMC_2000steps/OUTPUT
+which wine64 || which wine
 ```
 
-### 步骤2:准备输入文件 / Step 2: Prepare Input Files
+### 3.2 Install Wine (Ubuntu/Debian)
+
 ```bash
-# 复制结构文件 / Copy structure file
-cp OUTPUT/Pd_CO9_O18_473K_101325Pa_R50/ini.xyz OUTPUT/Pd_CO9_O18_473K_101325Pa_R50/KMC_2000steps/
-
-# 准备input.json(从MOSP_database复制并修改)
-# Prepare input.json (copy from MOSP_database and modify)
-# 必需字段 / Required fields: nspecies, nproducts, nevents, s1, s2, p1, e1-e7, li
+sudo dpkg --add-architecture i386
+sudo apt-get update
+sudo apt-get install wine64 wine32
 ```
 
-### 步骤3:KMC参数交互确认 / Step 3: KMC Parameter Interactive Confirmation
-(详见下方"🔄 KMC参数交互确认流程"部分)
-/ (See "🔄 KMC Parameter Interactive Confirmation Process" section below)
+### 3.3 Automatic environment check
 
-### 步骤4:展示参数给用户确认 / Step 4: Show Parameters for User Confirmation
-(详见下方"🔄 KMC参数交互确认流程"部分)
-/ (See "🔄 KMC Parameter Interactive Confirmation Process" section below)
+- ✅ Wine installed → proceed normally
+- ⚠️ Wine missing → prompt install instructions
+- ❌ Version incompatible → prompt upgrade
 
-### 步骤5:运行KMC / Step 5: Run KMC
+## 4. Step-Count Warning
 
-**⚠️ Long-step KMC Calculation Time Warning / 长步数KMC计算时间提醒**
-
-When KMC steps ≥20M, calculation time is long. You MUST warn the user before execution:
+When KMC steps ≥ 20M, MUST warn user before execution:
 
 ```
-⚠️ Calculation Time Warning / 计算时间提醒：
-Current KMC steps: {N}, estimated calculation time is approximately {estimated_hours} hours.
-(Reference: 20M steps takes about 12 hours)
-Running multiple tasks simultaneously may increase time.
+⚠️ Calculation Time Warning:
+Current KMC steps: {N}, estimated time: ~{estimated_hours} hours.
+(Reference: 20M steps ≈ 12 hours, 40M steps ≈ 24+ hours)
 Continue with KMC simulation?
 ```
 
-**Time Reference / 时间参考**:
-- 20M steps: about 12 hours
-- 40M steps: about 24 hours or longer
-- More steps → linear growth in time
+| Steps | Estimated time |
+|-------|----------------|
+| 20M | ~12 hours |
+| 40M | ~24 hours or longer |
+| More | Linear growth |
 
-**Note / 注意**: If user selects multiple conditions (e.g., multiple temperatures), each condition requires separate calculation, total time multiplies.
+> Note: Running multiple conditions (e.g., multiple temperatures) requires separate calculations; total time multiplies.
 
-```bash
-# KMC运行指令(注意:输出目录不需要添加OUTPUT前缀)
-# KMC run command (Note: output directory does not need OUTPUT prefix)
-python3 ../../kmc_standalone.py \
-  --xyz OUTPUT/{任务目录名}/ini.xyz \
-  --json OUTPUT/{任务目录名}/input.json \
-  --out-dir {任务目录名}
+## 5. Input Contract (Required fields in input.json)
 
-# 说明:kmc_standalone.py会自动添加OUTPUT前缀
-# Note: kmc_standalone.py will automatically add OUTPUT prefix
-# 例如 / Example: --out-dir Pd_CO9_O18_473K_101325Pa_R50/KMC_2000steps
-# 实际输出 / Actual output: OUTPUT/Pd_CO9_O18_473K_101325Pa_R50/KMC_2000steps/OUTPUT/
+### Top-level fields
+
+| Field | Type | Description |
+|-------|------|-------------|
+| Element | string | Metal element (Pd, Pt, Au, etc.) |
+| Lattice constant | string | Lattice constant (Å) |
+| Crystal structure | string | Crystal structure (FCC, BCC, HCP) |
+| Temperature | string | Temperature (K) |
+| Pressure | string | Pressure (Pa) |
+| flag_MSR | boolean | MUST be `false` |
+| flag_KMC | boolean | MUST be `true` |
+| KMC | object | KMC parameter object |
+
+### KMC object required fields
+
+| Field | Type | Description |
+|-------|------|-------------|
+| nLoop | string | Simulation steps |
+| record_int | string | Recording interval |
+| nspecies | number | Number of species |
+| nproducts | number | Number of products |
+| nevents | number | Number of reaction events |
+| nevents_mob | number | Number of mobility events |
+| s1 / s2 | string | Species 1/2 definitions (JSON string) |
+| p1 | string | Product 1 definition (JSON string) |
+| e1 ~ e7 | string | Reaction events 1~7 (JSON string) |
+| li | array | Lattice interaction matrix |
+
+> ⚠️ **CRITICAL**: Gas entropy `s1.S_gas` / `s2.S_gas` MUST match MSR's `Gas1_S` / `Gas2_S` (use the same calculation formula).
+
+## 6. Directory Structure
+
+KMC task directory must be under MSR directory:
+
+```
+mosp-for-chatMOSP/OUTPUT/{msr_task_name}/
+└── KMC_{steps}steps/             ← KMC task directory
+    ├── input.json                ← outside INPUT/
+    ├── ini.xyz                   ← copied from MSR
+    ├── coverage.png              ← generated after run
+    ├── coverage_steps.png        ← generated after run
+    ├── tof.png                   ← generated after run
+    ├── tof_time.png              ← generated after run
+    ├── INPUT/                    ← should be empty before run
+    └── OUTPUT/                   ← populated after run
+        ├── rec_cov.data
+        ├── rec_event.data
+        └── rec_site_spc.data
 ```
 
-### 步骤6:检查KMC输出并重新绘制图像 / Step 6: Check KMC Output and Regenerate Plots
+> ⚠️ **IMPORTANT**:
+> - `ini.xyz` and `input.json` MUST be outside `INPUT/` (`kmc_standalone.py` clears `INPUT/OUTPUT`)
+> - Ensure `INPUT/` and `OUTPUT/` are empty before running
 
-**应用场景 / Application Scenario**:
-- 用户提交了较长时间的KMC任务 / User submitted a long KMC task
-- 询问agent任务是否结束 / Asking agent if task has ended
-- agent检查发现任务结束 / Agent checks and finds task has ended
-- 检查KMC任务目录是否存在coverage.png和tof.png / Check if coverage.png and tof.png exist in KMC task directory
-- 如果不存在,运行绘图脚本重新生成 / If not exist, run plotting script to regenerate
+## 7. Execution Steps
 
-**检查时机 / Check Timing**:KMC运行结束后 / After KMC run completes
+### Step 1: Create KMC task directory
 
-**检查内容 / Check Content**:
-1. 检查OUTPUT文件夹是否存在rec_cov.data、rec_event.data、rec_site_spc.data文件 / Check if rec_cov.data, rec_event.data, rec_site_spc.data files exist in OUTPUT folder
-2. 比较预期步数和实际运行步数是否一致 / Compare expected steps with actual run steps
-3. 检查KMC任务目录是否存在coverage.png和tof.png / Check if coverage.png and tof.png exist in KMC task directory
-4. 如果图像不存在,运行绘图脚本重新生成 / If plots don't exist, run plotting script to regenerate
-
-**文件位置说明 / File Location Description**:
-- 数据文件位置 / Data file location:KMC任务目录/OUTPUT/(rec_cov.data、rec_event.data、rec_site_spc.data)
-- 图像文件位置 / Plot file location:KMC任务目录/(coverage.png、tof.png)
-
-**检查与绘图命令 / Check and Plot Commands**:
 ```bash
-# 定义KMC任务目录 / Define KMC task directory
-KMC_TASK_DIR="KMC任务目录"
+mkdir -p OUTPUT/Pd_CO9_O18_473K_101325Pa_R50/KMC_{steps}steps/INPUT
+mkdir -p OUTPUT/Pd_CO9_O18_473K_101325Pa_R50/KMC_{steps}steps/OUTPUT
+```
+
+### Step 2: Copy structure file
+
+```bash
+cp OUTPUT/{msr_task_name}/ini.xyz OUTPUT/{msr_task_name}/KMC_{steps}steps/ini.xyz
+```
+
+### Step 3: Prepare input.json
+
+```bash
+# Copy template from MOSP_database (do not create manually)
+cp mosp-for-chatMOSP/MOSP_database/{metal}-{reaction}.json \
+   OUTPUT/{msr_task_name}/KMC_{steps}steps/input.json
+
+# Adjust fields:
+# - nLoop: user-specified steps
+# - T: user-specified temperature
+# - gas_pp: user-specified partial pressures
+# - record_int: recording interval
+# - s1.S_gas / s2.S_gas: recalculated using parameter-builder §7.1 formula
+```
+
+### Step 4: Show parameters for user confirmation
+
+Use parameter-builder §KMC parameter display format (5 options).
+
+### Step 5: Check Wine + step warning
+
+- Check Wine environment
+- Warn when steps ≥ 20M
+
+### Step 6: Execute KMC
+
+```bash
+python3 ../../kmc_standalone.py \
+  --xyz OUTPUT/{task_dir}/ini.xyz \
+  --json OUTPUT/{task_dir}/input.json \
+  --out-dir {task_dir}
+```
+
+> Note: pass just the task directory name to `--out-dir` (e.g.
+> `{msr_task_name}/KMC_{steps}steps`). The script automatically places it under
+> `OUTPUT/`; even if an `OUTPUT/` prefix is accidentally included it is
+> de-duplicated, so no `OUTPUT/OUTPUT/` nesting is produced.
+
+## 8. Output Files
+
+| File | Location | Description |
+|------|----------|-------------|
+| coverage.png | KMC task dir | Coverage vs Time |
+| coverage_steps.png | KMC task dir | Coverage vs Steps |
+| tof.png | KMC task dir | TOF vs Time |
+| tof_time.png | KMC task dir | TOF vs Steps |
+| coverage.csv | OUTPUT/ | Coverage data |
+| tof.csv | OUTPUT/ | TOF data |
+| site_tof.csv | OUTPUT/ | Site TOF data |
+| rec_cov.data | OUTPUT/ | Coverage records (KMC engine raw output) |
+| rec_event.data | OUTPUT/ | Event records |
+| rec_site_spc.data | OUTPUT/ | Site-species records |
+
+### 8.1 Sending Images to User (Feishu)
+
+> ⚠️ **One image per call**: Feishu message tool only supports 1 image per attachment.
+> Sending more than one will silently drop the extras. After KMC completes, you MUST
+> send the 4 images one at a time with numbered labels.
+
+Send order and labels:
+
+1. Image 1/4: Coverage vs Time — `coverage.png`
+2. Image 2/4: Coverage vs Steps — `coverage_steps.png`
+3. Image 3/4: TOF vs Time — `tof.png`
+4. Image 4/4: TOF vs Steps — `tof_time.png`
+
+Example per message:
+```
+message(action=send, message="Image 1/4: Coverage vs Time",
+         attachments=[{filePath:"...coverage.png", type:"image"}])
+```
+
+## 9. Output Check & Auto-Regenerate
+
+After KMC completes (especially when user asks "is the task done?"), MUST check and regenerate plots if needed:
+
+```bash
+KMC_TASK_DIR="KMC task directory"
 KMC_OUTPUT="$KMC_TASK_DIR/OUTPUT"
 
-# 检查数据文件是否存在 / Check if data files exist
-if [ ! -f "$KMC_OUTPUT/rec_cov.data" ] || [ ! -f "$KMC_OUTPUT/rec_event.data" ] || [ ! -f "$KMC_OUTPUT/rec_site_spc.data" ]; then
-  echo "❌ KMC数据文件不存在,KMC模拟可能未开始或未成功完成"
-  echo "❌ KMC data files not found, KMC simulation may not have started or completed successfully"
+# 1. Check data files
+if [ ! -f "$KMC_OUTPUT/rec_cov.data" ] || \
+   [ ! -f "$KMC_OUTPUT/rec_event.data" ] || \
+   [ ! -f "$KMC_OUTPUT/rec_site_spc.data" ]; then
+  echo "❌ Data files missing, KMC may not have completed"
   exit 1
 fi
 
-# 检查KMC是否成功结束:比较预期步数和实际运行步数
-# Check if KMC completed successfully: compare expected steps with actual run steps
-EXPECTED_STEPS=$(grep -E "^[0-9]+\s+! Num of steps" "$KMC_TASK_DIR/INPUT/input.txt" | awk '{print $1}')
-ACTUAL_STEPS=$(tail -n 1 "$KMC_OUTPUT/rec_event.data" | awk '{print $2}')
+# 2. Check step-count consistency
+EXPECTED=$(grep -E "^[0-9]+\s+! Num of steps" "$KMC_TASK_DIR/INPUT/input.txt" | awk '{print $1}')
+ACTUAL=$(tail -n 1 "$KMC_OUTPUT/rec_event.data" | awk '{print $2}')
 
-if [ "$EXPECTED_STEPS" != "$ACTUAL_STEPS" ]; then
-  echo "❌ KMC模拟未成功完成 / KMC simulation did not complete successfully"
-  echo "  预期步数 / Expected steps: $EXPECTED_STEPS"
-  echo "  实际运行步数 / Actual steps: $ACTUAL_STEPS"
-  echo "请检查KMC运行日志,确认错误原因 / Please check KMC run log to identify the error"
+if [ "$EXPECTED" != "$ACTUAL" ]; then
+  echo "❌ Expected $EXPECTED steps, got $ACTUAL, KMC did not complete"
   exit 1
 fi
 
-echo "✅ KMC已成功完成(步数 / Steps:$ACTUAL_STEPS)"
-
-# 检查图像文件是否存在 / Check if plot files exist
-if [ -f "$KMC_TASK_DIR/coverage.png" ] && [ -f "$KMC_TASK_DIR/tof.png" ]; then
-  echo "✅ KMC输出图像已存在 / KMC output plots already exist"
-  echo "  Coverage plot: $KMC_TASK_DIR/coverage.png"
-  echo "  TOF plot: $KMC_TASK_DIR/tof.png"
+# 3. Check plots (4 images), regenerate if missing
+if [ -f "$KMC_TASK_DIR/coverage.png" ] && \
+   [ -f "$KMC_TASK_DIR/coverage_steps.png" ] && \
+   [ -f "$KMC_TASK_DIR/tof.png" ] && \
+   [ -f "$KMC_TASK_DIR/tof_time.png" ]; then
+  echo "✅ Plots already exist"
 else
-  echo "⚠️ KMC输出图像不存在,正在重新生成... / KMC output plots not found, regenerating..."
-
-  # 运行绘图脚本 / Run plotting script
   python3 ../../utils/plot_kmc_data.py "$KMC_OUTPUT"
-
-  echo "✅ 图像已重新生成 / Plots regenerated successfully"
-  echo "  Coverage plot: $KMC_TASK_DIR/coverage.png"
-  echo "  TOF plot: $KMC_TASK_DIR/tof.png"
+  echo "✅ Plots regenerated"
 fi
 ```
 
-**绘图脚本说明 / Plotting Script Description**:
-- 脚本位置 / Script location:mosp-for-chatMOSP/utils/plot_kmc_data.py
-- 功能 / Function:读取rec_cov.data、rec_event.data、rec_site_spc.data文件,生成图像和CSV文件 / Read rec_cov.data, rec_event.data, rec_site_spc.data files, generate plots and CSV files
-- 图像保存位置 / Plot save location:KMC任务目录(与kmc_standalone.py一致)/ KMC task directory (consistent with kmc_standalone.py)
-- CSV文件保存位置 / CSV save location:KMC任务目录/OUTPUT/
+> Plotting script: `mosp-for-chatMOSP/utils/plot_kmc_data.py`
 
-**生成的文件 / Generated Files**:
-- coverage.png - 覆盖率随时间变化的图像(保存在KMC任务目录)/ Coverage evolution over time (saved in KMC task directory)
-- tof.png - TOF随时间变化的图像(保存在KMC任务目录)/ TOF evolution over time (saved in KMC task directory)
-- coverage.csv - 覆盖率数据(保存在OUTPUT目录)/ Coverage data (saved in OUTPUT directory)
-- tof.csv - TOF数据(保存在OUTPUT目录)/ TOF data (saved in OUTPUT directory)
-- site_tof.csv - 位点TOF数据(保存在OUTPUT目录)/ Site TOF data (saved in OUTPUT directory)
+## 10. Error Handling
 
-**注意事项 / Notes**:
-- 无需重新运行KMC模拟 / No need to re-run KMC simulation
-- 绘图脚本会自动识别反应事件(如CO+O)/ Plotting script automatically identifies reaction events (e.g., CO+O)
-- 如果数据文件不存在,说明KMC模拟未成功完成,需要检查运行日志 / If data files don't exist, KMC simulation did not complete successfully, need to check run log
+| Error | Action |
+|-------|--------|
+| Step-count mismatch | Check KMC log; may not have finished |
+| Data files missing | KMC did not complete; check `run.log` |
+| Lattice constant missing | Copy complete template from MOSP_database; do not create manually |
+| INPUT/OUTPUT dir missing | Create them in Step 1 |
+| ini.xyz missing | Copy from MSR task directory |
+| Wine missing | Prompt install instructions |
+| KMC segfault | Wine version incompatible; prompt upgrade |
 
-**常见问题 / FAQ**:
-- Q: 为什么图像在KMC任务目录,而不是OUTPUT目录?/ Why are plots in KMC task directory, not OUTPUT directory?
-- A: 这是kmc_standalone.py的设计,图像保存在KMC任务目录,数据文件保存在OUTPUT目录 / This is kmc_standalone.py design, plots saved in KMC task directory, data files saved in OUTPUT directory
+## 11. Cross-Skill Handoff
 
-- Q: 如果KMC模拟未成功完成怎么办?/ What if KMC simulation did not complete successfully?
-- A: 检查KMC运行日志,确认错误原因,修复后重新运行KMC / Check KMC run log, identify error, fix and re-run KMC
+- **MSR → KMC**: After MSR completes, `ini.xyz` is produced. This skill independently fetches complete KMC parameters from MOSP_database. Do NOT reuse MSR's `input.json`.
+- **Parameter modification**: If user changes temperature, parameter-builder MUST recalculate gas entropy per §7.5.
+- **Long-task query**: When user asks "is the task done?", run §9 check script, regenerate plots if needed.
 
----
+## 12. Dependencies
 
-## ⚠️ KMC执行前检查清单 / KMC Pre-Execution Checklist
+- **mosp-for-chatMOSP** — KMC engine (cloned, includes main.exe)
+- **chatmosp-parameter-builder** — parameter building and gas entropy
+- **chatmosp-file-organizer** — directory creation
+- **chatmosp-input-coordinator** — task entry point
+- **Wine** — required for Windows main.exe
 
-在运行KMC之前,**必须**确认以下项目全部完成:
-Before running KMC, **must** confirm all the following items are completed:
+## 13. File Structure
 
-### 📁 目录结构检查 / Directory Structure Check
-- [ ] KMC任务目录已创建 / KMC task directory created
-- [ ] INPUT/文件夹已创建 / INPUT/ folder created
-- [ ] OUTPUT/文件夹已创建 / OUTPUT/ folder created
-- [ ] ini.xyz文件已复制到KMC任务目录 / ini.xyz file copied to KMC task directory
-- [ ] input.json文件已创建在KMC任务目录(不是INPUT/下)/ input.json file created in KMC task directory (not under INPUT/)
-
-### 📄 input.json必需字段检查 / input.json Required Fields Check
-
-**顶层必需字段 / Top-level Required Fields:**
-- [ ] Element(金属元素 / Metal element)
-- [ ] Lattice constant(晶格常数 / Lattice constant)
-- [ ] Crystal structure(晶体结构 / Crystal structure)
-- [ ] Temperature(温度 / Temperature)
-- [ ] Pressure(压力 / Pressure)
-- [ ] flag_MSR: false
-- [ ] flag_KMC: true
-- [ ] KMC(KMC参数对象 / KMC parameter object)
-
-**KMC部分必需字段 / KMC Section Required Fields:**
-- [ ] nLoop(模拟步数 / Simulation steps)
-- [ ] nspecies(物种数量 / Number of species)
-- [ ] nproducts(产物数量 / Number of products)
-- [ ] nevents(反应事件数 / Number of reaction events)
-- [ ] s1, s2(物种定义 / Species definitions)
-- [ ] p1(产物定义 / Product definition)
-- [ ] e1-e7(反应事件定义 / Reaction event definitions)
-- [ ] li(晶格相互作用矩阵 / Lattice interaction matrix)
-
-### ✅ 检查命令 / Check Commands
-```bash
-# 检查目录结构 / Check directory structure
-ls -la KMC任务目录/
-
-# 检查input.json顶层字段 / Check input.json top-level fields
-cat KMC任务目录/input.json | jq 'keys'
-
-# 检查KMC部分字段 / Check KMC section fields
-cat KMC任务目录/input.json | jq '.KMC | keys'
+```
+chatmosp-kmc-simulator/
+├── SKILL.md       # Chinese version
+└── SKILL_en.md    # This file
 ```
 
-### ⚠️ 常见错误及解决方案 / Common Errors and Solutions
+## 14. Example
 
-| 错误信息 / Error Message | 原因 / Cause | 解决方案 / Solution |
-|---------|------|----------|
-| `missing top-level field 'Lattice constant'` | input.json缺少必需的顶层字段 / input.json missing required top-level field | 从MOSP_database复制完整模板,不要手动创建 / Copy complete template from MOSP_database, do not create manually |
-| `INPUT/ or OUTPUT/ directory not found` | 缺少INPUT/OUTPUT文件夹 / Missing INPUT/OUTPUT folders | 执行步骤1创建文件夹 / Execute step 1 to create folders |
-| `ini.xyz not found` | ini.xyz文件不存在或位置错误 / ini.xyz file does not exist or in wrong location | 从MSR任务目录复制ini.xyz到KMC任务目录 / Copy ini.xyz from MSR task directory to KMC task directory |
-
----
-
-### KMC参数来源 / KMC Parameter Sources:
-1. **从MOSP_database复制 / Copy from MOSP_database**:
-   - `MOSP_database/Pd-COoxidation.json`
-   - `MOSP_database/Pt-COoxidation.json`
-
-2. **根据用户输入调整 / Adjust based on user input**:
-   - nLoop: 用户指定的步数 / User-specified steps
-   - T: 温度 / Temperature
-   - 其他参数从example继承 / Other parameters inherited from example
-
-3. **不使用MSR的input.json / Do not use MSR's input.json**:
-   - MSR参数不完整,缺少KMC必需字段 / MSR parameters incomplete, missing required KMC fields
-   - KMC需要独立的完整参数配置 / KMC requires independent complete parameter configuration
-
----
-
-## 🔄 KMC参数交互确认流程 / KMC Parameter Interactive Confirmation Process
-
-### 流程 / Process:
 ```
-用户请求KMC → 准备完整参数 → 展示参数模板 → 用户确认 → 运行KMC
-User requests KMC → Prepare complete parameters → Show parameter template → User confirmation → Run KMC
-```
+User: Run KMC simulation for Pt CO oxidation at 850K, 150Pa, 20M steps
 
-### 参数展示模板 / Parameter Display Template:
-
-```markdown
-📊 KMC参数已准备好,请确认: / KMC parameters are ready, please confirm:
-
-【基本信息 / Basic Information】
-- 任务类型 / Task Type: KMC (动力学蒙特卡洛模拟 / Kinetic Monte Carlo Simulation)
-- 反应 / Reaction: CO氧化反应 (2CO + O2 → 2CO2) / CO oxidation reaction
-- 温度 / Temperature: 473 K (200°C)
-- 压力 / Pressure: 101325 Pa (1 atm)
-- 气体分压 / Gas Partial Pressure: CO 9%, O2 18%
-
-【团簇信息 / Cluster Information】(来自MSR结果 / From MSR results)
-- 金属元素 / Metal Element: Pd
-- 团簇半径 / Cluster Radius: 50 Å
-- 原子数量 / Number of Atoms: 3,888 个 / atoms
-- 晶体结构 / Crystal Structure: FCC (面心立方 / Face-centered cubic)
-- MSR任务目录 / MSR Task Directory: Pd_CO9_O18_473K_101325Pa_R50
-
-【模拟参数 / Simulation Parameters】
-- 模拟步数 / Simulation Steps: 5,000,000 步 / steps
-- 记录间隔 / Record Interval: 每10,000步记录一次 / Record every 10,000 steps
-- 物种数量 / Number of Species: 5 种 / types
-- 反应事件 / Reaction Events: 14 种 / types
-
-【物种定义 / Species Definition】
-- s1: CO (反应物 / Reactant)
-- s2: O2 (反应物 / Reactant)
-- s3: O (中间体 / Intermediate)
-- s4: CO2 (产物 / Product)
-- s5: 空位 / Vacancy
-
-【产物定义 / Product Definition】
-- p1: CO2 (事件X, Y生成 / Generated by event X, Y)
-
-【反应机制 / Reaction Mechanism】(简要说明 / Brief description)
-- CO吸附、脱附、扩散 / CO adsorption, desorption, diffusion
-- O2解离、扩散 / O2 dissociation, diffusion
-- CO + O → CO2
-
-【输出设置 / Output Settings】
-- KMC任务目录 / KMC Task Directory: Pd_CO9_O18_473K_101325Pa_R50/KMC_5000000steps/
-- 生成文件 / Generated Files: input.json, 输出文件等 / output files, etc.
-
-请选择 / Please select:
-1. ✅ 确认 - 使用这些参数继续执行KMC模拟 / Confirm - Use these parameters to continue KMC simulation
-2. ✏️ 修改 - 调整模拟步数或其他参数(如温度、压强、气体组成等) / Modify - Adjust simulation steps or other parameters (e.g., temperature, pressure, gas composition)
-3. 📊 对比 - 运行多个条件进行对比(如多个温度、压强) / Compare - Run multiple conditions for comparison (e.g., multiple temperatures, pressures)
-4. 🔄 切换计算模式 - 切换到MSR结构计算 / Switch calculation mode - Switch to MSR structure calculation
-5. ❌ 取消任务,更换体系 - 更换金属或气体体系 / Cancel task, change system - Change metal or gas system
-
-建议 / Suggestions:
-- 如果想快速测试,可以先运行较少步数(如100,000步) / For quick testing, run fewer steps first (e.g., 100,000 steps)
-- 500万步可以获得更准确的统计数据,但耗时更长 / 5 million steps yield more accurate statistics but take longer
-
-请回复您的选择(数字1-5或关键词),或告诉我要修改的参数。 / Please reply with your choice (number 1-5 or keyword), or tell me the parameters to modify.
-```
-## 🔧 技术实现 / Technical Implementation
-
-### ⚠️ 系统要求 / System Requirements
-KMC计算需要Wine环境运行Windows版`main.exe`引擎:
-KMC calculation requires Wine environment to run Windows version `main.exe` engine:
-
-```bash
-# 检查Wine是否已安装 / Check if Wine is installed
-which wine
-
-# 如果未安装,请安装:/ If not installed, please install:
-sudo apt-get update
-sudo apt-get install wine
-```
-
-### 自动环境检查 / Automatic Environment Check
-系统会自动检查Wine环境:
-The system will automatically check the Wine environment:
-- ✅ 如果Wine已安装:正常执行KMC计算 / If Wine is installed: Execute KMC calculation normally
-- ⚠️ 如果Wine未安装:提示安装指导 / If Wine is not installed: Prompt installation instructions
-- ❌ 如果Wine版本不兼容:提示升级 / If Wine version is incompatible: Prompt upgrade
-
-### 依赖关系 / Dependencies
-- `mosp-for-chatMOSP` - 核心计算引擎(已克隆)/ Core computation engine (already cloned)
-- `chatmosp-file-organizer` - 文件路径管理 / File path management
-- `chatmosp-parameter-builder` - 参数验证 / Parameter validation
-- **Wine环境 / Wine Environment** - 运行Windows版`main.exe`(必需)/ Run Windows version `main.exe` (required)
-
-### 执行流程 / Execution Flow
-```
-接收参数 → 验证参数 → 准备输入 → 检查Wine环境 →
-Receive params → Validate params → Prepare input → Check Wine environment →
-Wine可用 → 执行KMC → 监控进度 → 检查资源 → 收集结果 → 分析数据
-Wine available → Execute KMC → Monitor progress → Check resources → Collect results → Analyze data
-       ↓
-   Wine不可用 → 提示安装指导 → 中止计算
-   Wine unavailable → Prompt installation instructions → Abort calculation
-       ↓
-    4000万步警告 → 用户交互 → 继续/停止
-    40M steps warning → User interaction → Continue/Stop
-```
-
-## 📝 使用示例 / Usage Examples
-
-### 英文示例 / English Example
-```
-用户: Run KMC simulation for Pt CO oxidation at 850K, 150Pa, 20 million steps
-系统: [识别为KMC任务 → 查找/确认参数 → ⚠️ 20M步约需12小时，确认继续？→ 执行KMC → 绘制TOF/覆盖度图 → 展示结果]
-```
-
-### 中文示例 / Chinese Example
-```
-用户: 对Pt纳米颗粒进行CO氧化KMC模拟，850K，150Pa，2000万步
-系统: [识别为KMC任务 → 查找/确认参数 → ⚠️ 2000万步约需12小时，确认继续？→ 执行KMC → 绘制TOF/覆盖度图 → 展示结果]
+System: [Recognize as KMC → parameter-builder searches params →
+        Show 5-option confirmation → User confirms → Check Wine installed →
+        ⚠️ 20M steps ≈ 12 hours, warn user → User confirms again →
+        Prepare input.json → Invoke kmc_standalone.py → Monitor progress →
+        Check output → Generate 4 images → Send one-by-one → Display results]
 ```
