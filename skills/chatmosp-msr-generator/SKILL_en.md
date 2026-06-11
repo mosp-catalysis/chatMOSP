@@ -3,9 +3,9 @@ name: chatmosp-msr-generator
 description: |
   MSR (Multiscale Structure Reconstruction) calculation engine of the chatMOSP system.
   Invokes mosp-for-chatMOSP/utils/msr.py to generate metal cluster structures
-  (Wulff construction), producing ini.xyz and {task_name}_cluster.xyz, then
-  automatically generates PNG structure images and GIF rotation animations,
-  and finally sends them to the user via Feishu.
+  (Wulff construction), producing ini.xyz and {task_name}_cluster.xyz
+  (available for downstream EKMC or RKMC), then automatically generates PNG structure
+  images and GIF rotation animations, and finally sends them to the user via Feishu.
   Triggers: after parameter-builder has built parameters and the user has confirmed
   via the 5-option prompt, this skill executes the MSR calculation.
 ---
@@ -40,7 +40,7 @@ description: |
 | Radius | Cluster radius (Å) |
 | nFaces / Face1 / Face2 / Face3 | Surface facet parameters |
 
-Gas entropy (`Gas1_S` / `Gas2_S`) is calculated by parameter-builder using the formula in §7.1. **DO NOT manually fill or reuse values from example files.**
+Gas entropy (`Gas1_S` / `Gas2_S`) is calculated by parameter-builder using the formula in §8.1. **DO NOT manually fill or reuse values from example files.**
 
 ## 4. Large-Cluster Warning
 
@@ -117,7 +117,7 @@ Requirements:
 
 | File | Description |
 |------|-------------|
-| ini.xyz | Real cluster structure (all atoms), input for KMC |
+| ini.xyz | Real cluster structure (all atoms), input for RKMC or EKMC |
 | {task_name}_cluster.xyz | Surface-atom-classified structure for plotting |
 | faceinfo.txt | Facet information statistics |
 | input.json | MSR parameter file |
@@ -126,8 +126,9 @@ Requirements:
 
 ## 7. Key Principles
 
-- MSR `input.json` MUST NOT contain KMC parameters — KMC parameters are prepared independently by kmc-simulator
+- MSR `input.json` MUST NOT contain RKMC/EKMC parameters — RKMC parameters are prepared independently by kmc-simulator, EKMC parameters by ekmc-simulator; neither reuses MSR's input.json
 - `ini.xyz` is the **OUTPUT** of MSR, NOT the input — do not prepare `ini.xyz` for MSR tasks
+- `ini.xyz` is the universal input for downstream calculations: RKMC (reactivity) uses it directly, EKMC (morphology evolution) also uses the same file
 - DO NOT directly copy example files from `MOSP_database` — use parameter-builder to recalculate gas entropy
 
 ## 8. Error Handling
@@ -141,7 +142,9 @@ Requirements:
 
 ## 9. Cross-Skill Handoff
 
-- **MSR → KMC**: After MSR completes, `ini.xyz` is produced. KMC tasks independently fetch complete KMC parameters from `MOSP_database` via kmc-simulator. Do NOT reuse this skill's `input.json`. See kmc-simulator.
+- **MSR → RKMC**: After MSR completes, `ini.xyz` is produced. RKMC tasks independently fetch complete RKMC parameters (KMC section) from `MOSP_database` via kmc-simulator. Do NOT reuse this skill's `input.json`. See kmc-simulator.
+- **MSR → EKMC**: After MSR completes, `ini.xyz` is produced. EKMC tasks independently fetch EKMC parameters (EKMC section) from `MOSP_database` via ekmc-simulator. Do NOT reuse this skill's `input.json`. See ekmc-simulator.
+- **MSR → EKMC → RKMC**: MSR produces ini.xyz → EKMC evolves morphology producing final_stru.xyz → RKMC analyzes reactivity. The full chain is dispatched by input-coordinator.
 - **MSR failure → parameter-builder**: Parameter issues go back to parameter-builder for adjustment.
 - **Re-running MSR**: If directory already exists, ask user before overwriting.
 
@@ -151,6 +154,8 @@ Requirements:
 - **chatmosp-parameter-builder** — parameter building and gas entropy calculation
 - **chatmosp-file-organizer** — directory structure
 - **chatmosp-input-coordinator** — task entry point
+- **chatmosp-kmc-simulator** — RKMC (downstream, consumes ini.xyz)
+- **chatmosp-ekmc-simulator** — EKMC (downstream, consumes ini.xyz)
 
 ## 11. File Structure
 

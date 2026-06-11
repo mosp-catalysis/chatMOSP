@@ -4,7 +4,9 @@ Conversational control of MOSP catalytic reaction simulations via OpenClaw skill
 
 ## Overview
 
-chatMOSP is a collection of six OpenClaw skills that enable natural-language control of MOSP (Multiscale Operando Simulation Package) calculations. The system follows a **document-driven architecture** — each skill is a pair of Markdown instruction documents (Chinese + English) that guide an AI assistant through parameter construction, structure generation, kinetic simulation, and result visualization.
+chatMOSP is a collection of seven OpenClaw skills that enable natural-language control of MOSP (Multiscale Operando Simulation Package) calculations. The system follows a **document-driven architecture** — each skill is a pair of Markdown instruction documents (Chinese + English) that guide an AI assistant through parameter construction, structure generation, kinetic simulation (both reaction and environmental), and result visualization.
+
+KMC has been refined into two specialized skills: **chatmosp-kmc-simulator (RKMC)** for reaction kinetics (TOF/coverage), and **chatmosp-ekmc-simulator (EKMC)** for environmental morphology evolution (atom migration/diffusion).
 
 **Key principle**: The AI reads `SKILL.md` documents as operation guides and executes calculations step-by-step using shell commands, file operations, and user interaction. No Python skill code is invoked; all computation is performed by the MOSP engine directly.
 
@@ -15,8 +17,9 @@ chatMOSP is a collection of six OpenClaw skills that enable natural-language con
 | **chatmosp-input-coordinator** | Task recognition and routing. Identifies MSR, KMC, or parameter query tasks from user input. |
 | **chatmosp-parameter-builder** | Parameter construction with auto-calculation. Builds `input.json` from MOSP_database templates or literature search. Auto-calculates gas entropy and converts interaction parameters. |
 | **chatmosp-msr-generator** | Multiscale Structure Reconstruction. Generates equilibrium nanoparticle structures via Wulff construction. |
-| **chatmosp-kmc-simulator** | Kinetic Monte Carlo simulation. Simulates surface reaction dynamics and computes TOF, coverage, etc. |
-| **chatmosp-literature-search** | Literature parameter extraction. Searches academic journals for adsorption energies, interaction parameters, and surface energies when MOSP_database lacks matching data. |
+| **chatmosp-kmc-simulator** | Reaction Kinetic Monte Carlo (RKMC). Simulates surface reaction dynamics and computes TOF, coverage, etc. |
+| **chatmosp-ekmc-simulator** | Environmental Kinetic Monte Carlo (EKMC). Simulates cluster morphology evolution under reaction atmosphere via migration/diffusion events. |
+| **chatmosp-literature-search** | Literature parameter extraction. Searches academic journals for adsorption energies, interaction parameters, surface energies, and EKMC-specific parameters (E_bond, Ecoh, Ea_diff) when MOSP_database lacks matching data. |
 | **chatmosp-file-organizer** | File and directory management. Organizes output files, generates visualizations, and manages MOSP_database. |
 
 ## Prerequisites
@@ -61,8 +64,12 @@ Restart OpenClaw. You should be able to give natural-language commands like:
 ```
 User input → chatmosp-input-coordinator (task recognition)
     ├── MSR task → chatmosp-parameter-builder → chatmosp-msr-generator → visualization
-    ├── KMC task → chatmosp-parameter-builder → chatmosp-kmc-simulator → visualization
+    ├── RKMC task → chatmosp-parameter-builder → chatmosp-kmc-simulator → visualization
+    ├── EKMC task → chatmosp-parameter-builder → chatmosp-ekmc-simulator → visualization
     └── Query task → chatmosp-parameter-builder (display parameters)
+
+Advanced chain (MSR → EKMC → RKMC):
+    MSR → chatmosp-ekmc-simulator (morphology evolution) → chatmosp-kmc-simulator (reactivity analysis)
 ```
 
 ## Key Features
@@ -88,10 +95,15 @@ chatMOSP/
     │   └── SKILL_en.md            # English skill document
     ├── chatmosp-input-coordinator/
     ├── chatmosp-kmc-simulator/
+    ├── chatmosp-ekmc-simulator/
     ├── chatmosp-literature-search/
     ├── chatmosp-msr-generator/
     └── chatmosp-parameter-builder/
 ```
+
+## Version Notes
+
+This `EKMC-test` branch adds **chatmosp-ekmc-simulator** (7th skill) and refines KMC into RKMC (reaction) and EKMC (environmental). The `main` branch retains the original 6-skill structure.
 
 ## Citation
 

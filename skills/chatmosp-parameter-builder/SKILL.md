@@ -1,7 +1,7 @@
 ---
 name: chatmosp-parameter-builder
 description: |
-  chatMOSP 系统的参数构建与管理中心。负责 MSR / KMC 任务的参数查询、智能补全、
+  chatMOSP 系统的参数构建与管理中心。负责 MSR / RKMC / EKMC 任务的参数查询、智能补全、
   气体熵计算、MSR↔KMC 相互作用参数转换、参数完整性处理。
   触发场景：input-coordinator 识别任务后、计算引擎执行前，需要构建或调整参数；
   或用户查询/修改当前任务参数。
@@ -20,13 +20,14 @@ description: |
 ## 1. 核心职责
 
 1. 智能参数补全：从 MOSP_database 搜索匹配模板 → 替换温度 → 计算气体熵
-2. MSR / KMC 参数分离：两套参数完全独立，互不混用
+2. MSR / RKMC / EKMC 参数分离：三套参数完全独立，互不混用
 3. 5 选项确认流程：每次构建参数后必须让用户确认
 4. 气体熵计算：按温度自动计算 8 种气体的熵值
 5. 相互作用参数转换：MSR 满吸附格式 ↔ KMC 单原子格式（文献默认 KMC）
 6. 参数缺失处理：调用 literature-search 补全关键参数
 7. 温度替换：用户改温度时自动重算气体熵
-8. 参数验证：格式、范围、一致性、完整性检查
+8. EKMC 网格尺寸自动计算：默认 dim = 团簇直径(2×R) + 20
+9. 参数验证：格式、范围、一致性、完整性检查
 
 ## 2. ⚠️ 强制流程：参数确认
 
@@ -37,19 +38,20 @@ description: |
 1. ✅ 确认 — 使用这些参数继续
 2. ✏️ 修改 — 调整特定参数（温度/压强/气体分压/团簇尺寸/气体种类）
 3. 📊 对比 — 多个条件对比（多温度/多压强/多团簇尺寸/多气体分压组合）
-4. 🔄 切换计算模式 — 在 MSR 和 KMC 之间切换
+4. 🔄 切换计算模式 — 在 MSR、RKMC 和 EKMC 之间切换
 5. ❌ 取消任务，更换体系 — 更换金属或气体体系
 
 只有用户选择选项 1 后，才能执行计算。
 
-## 3. MSR / KMC 参数分离原则
+## 3. MSR / RKMC / EKMC 参数分离原则
 
 | 任务 | 来源 | 不应包含 |
 |------|------|----------|
-| MSR | MOSP_database 的 MSR 部分 + Gas + Adsorption | KMC 字段 |
-| KMC | MOSP_database 的 KMC 部分（含 nspecies、s1/s2、p1、e1-e7、li 全套） | MSR 字段 |
+| MSR | MOSP_database 的 MSR 部分 + Gas + Adsorption | KMC / EKMC 字段 |
+| RKMC | MOSP_database 的 KMC 部分（含 nspecies、s1/s2、p1、e1-e7、li 全套） | MSR / EKMC 字段 |
+| EKMC | MOSP_database 的 EKMC 部分（含 dim_xyz、E_bond、Ecoh、nspecies、s_i、e_i、li） | MSR / KMC 字段 |
 
-> ⚠️ **关键**：MSR 的 `input.json` 和 KMC 的 `input.json` 是**两个独立文件，不能复用**。
+> ⚠️ **关键**：MSR、RKMC、EKMC 的 `input.json` 是**三个独立文件**，互不复用。
 
 ## 4. MSR 参数展示模板
 
@@ -103,30 +105,30 @@ description: |
 1. ✅ 确认 - 使用这些参数继续执行 MSR 计算
 2. ✏️ 修改 - 调整特定参数（温度/压强/气体分压/团簇尺寸/气体种类）
 3. 📊 对比 - 多个条件对比（多温度/多压强/多团簇尺寸/多气体分压组合）
-4. 🔄 切换到 KMC
+4. 🔄 切换到 RKMC 或 EKMC
 5. ❌ 取消任务，更换体系
 ```
 
 > ⚠️ **单位说明**：`Gas1_pp` / `Gas2_pp` 是**百分比 (%)**，不是压力值。展示时必须带 % 号。
 
-## 5. KMC 参数展示模板
+## 5. RKMC 参数展示模板
 
 ```
-📊 KMC参数已准备好，请确认：
+📊 RKMC参数已准备好，请确认：
 
 【基本信息】
-- 任务类型：KMC（动力学蒙特卡洛模拟）
+- 任务类型：RKMC（反应动力学蒙特卡洛模拟）
 - 反应：{reaction}
 - 温度：{T} K ({T-273}°C)
 - 压力：{P} Pa
 - 气体分压：{Gas1} {pp1}%, {Gas2} {pp2}%
 
-【团簇信息】（来自 MSR 结果）
+【团簇信息】（来自 MSR 或 EKMC 结果）
 - 金属元素：{metal}
 - 团簇半径：{R} Å
 - 原子数量：{N} 个
 - 晶体结构：{structure}
-- MSR 任务目录：{msr_task_name}
+- 来源任务目录：{source_task_name}
 
 【模拟参数】
 - 模拟步数：{steps} 步
@@ -146,14 +148,14 @@ description: |
 - {mechanism_brief}
 
 【输出设置】
-- KMC 任务目录：{msr_task_name}/KMC_{steps}steps/
+- RKMC 任务目录：{source_task_name}/RKMC_{steps}steps/
 - 生成文件：input.json, coverage.png, coverage_steps.png, tof.png, tof_time.png, ...
 
 请选择：
-1. ✅ 确认 - 使用这些参数继续执行 KMC 模拟
+1. ✅ 确认 - 使用这些参数继续执行 RKMC 模拟
 2. ✏️ 修改 - 调整特定参数（步数/温度/压强/气体分压/记录间隔）
 3. 📊 对比 - 多个条件对比（多步数/多温度/多压强/多气体分压组合）
-4. 🔄 切换到 MSR
+4. 🔄 切换到 MSR 或 EKMC
 5. ❌ 取消任务，更换体系
 
 建议：
@@ -161,7 +163,97 @@ description: |
 - 500 万步可获得较准确统计，但耗时更长
 ```
 
-## 6. 智能参数补全流程
+## 6. EKMC 参数展示模板
+
+```
+📊 EKMC参数已准备好，请确认：
+
+【基本信息】
+- 任务类型：EKMC（环境动力学蒙特卡洛模拟 — 形貌演化）
+- 温度：{T} K ({T-273}°C)
+- 压力：{P} Pa
+- 气体分压：{Gas1} {pp1}%, {Gas2} {pp2}%
+
+【团簇信息】（来自 MSR 结果）
+- 金属元素：{metal}
+- 团簇半径：{R} Å
+- 晶体结构：{structure}
+- MSR 任务目录：{msr_task_name}
+
+【网格参数】（自动计算）
+- 网格尺寸：{dim_x} × {dim_y} × {dim_z}
+- 计算公式：dim = 团簇直径(2×R) + 20
+  → dim_x = dim_y = dim_z = 2 × {R} + 20 = {dim} Å
+
+【模拟参数】
+- 模拟步数：{steps} 步
+- 记录间隔：每 {record_int} 步一次
+- 物种数量：{nspecies} 种
+- 事件数量：{nevents} 种
+- 迁移事件：{nevents_mob} 种
+
+【能量参数】
+- 键能 E_bond：{E_bond} eV
+- 内聚能 Ecoh_U0：{Ecoh_U0} eV
+- Ecoh_A1/t1：{Ecoh_A1} / {Ecoh_t1}
+- Ecoh_A2/t2：{Ecoh_A2} / {Ecoh_t2}
+
+【物种定义】
+- s1: {name1}（吸附/脱附/扩散：{flag_ads}/{flag_des}/{flag_diff}）
+  - 粘附系数：{sticking}
+  - 扩散能垒 Ea_diff：{Ea_diff} eV
+  - 吸附能参数 E_ads_para：{E_ads_para}
+
+【事件定义】
+- e1: {event1_name} — {type1}，is_twosite={tw1}
+- e2: {event2_name} — {type2}，is_twosite={tw2}
+- ...
+
+【相互作用矩阵】
+- li: {matrix_brief}
+
+【输出设置】
+- EKMC 任务目录：{msr_task_name}/{metal}_{gas_pp}_{T}K_{P}Pa_R{R}_{steps}steps-EKMC/
+- 生成文件：input.json, coverage.png, events.png, migration.png,
+  structure_cov.png/.gif, structure_cn.png/.gif, structure_gcn.png/.gif + colorbar/legend
+
+请选择：
+1. ✅ 确认 - 使用这些参数继续执行 EKMC 模拟
+2. ✏️ 修改 - 调整特定参数（步数/温度/压强/气体分压/网格尺寸/记录间隔）
+3. 📊 对比 - 多个条件对比（多步数/多温度/多压强/多气体分压组合）
+4. 🔄 切换到 MSR 或 RKMC
+5. ❌ 取消任务，更换体系
+
+建议：
+- 快速测试可先跑 1 万步
+- 200 万步可获得较好的形貌演化统计
+- 网格尺寸 dim = 2×R+20 是安全默认值（≥ 团簇直径的 3 倍可避免引擎边界 bug）
+```
+
+### 6.1 EKMC 网格尺寸规则
+
+网格三维尺寸（dim_x / dim_y / dim_z）用于引擎的晶格网格分配。**默认规则**：
+
+```
+dim_x = dim_y = dim_z = 2 × R + 20
+```
+
+| 团簇半径 R (Å) | 团簇直径 2R | 默认网格 dim |
+|----------------|-------------|--------------|
+| 20 | 40 | 60 |
+| 30 | 60 | 80 |
+| 50 | 100 | 120 |
+| 65 | 130 | 150 |
+
+> ⚠️ **安全建议**：网格尺寸应 ≥ 团簇直径的 3 倍以避免引擎边界 bug。dim = 2R+20 ≈ 1.5~3.0 倍直径，已覆盖绝大多数安全边界。用户可手动修改。
+
+### 6.2 EKMC 参数来源
+
+- EKMC 模板从 `mosp-for-chatMOSP/MOSP_database/` 中搜索 `*-EKMC*.json`
+- 匹配规则：金属精确匹配 + 气体集合匹配
+- 无匹配时调用 literature-search 检索 EKMC 参数
+
+## 7. 智能参数补全流程
 
 ```
 用户输入
@@ -174,22 +266,22 @@ description: |
   → 展示给用户确认（5 选项）
 ```
 
-### 6.1 搜索匹配规则
+### 7.1 搜索匹配规则
 
 - **金属匹配**：精确匹配（Pd、Pt、Au、Cu、Ni 等）
 - **气体匹配**：气体种类集合匹配（CO+O₂ → CO 氧化环境）
 - **最佳匹配**：选择金属和气体匹配度最高的 example
 - **默认来源**：`mosp-for-chatMOSP/MOSP_database/`
 
-### 6.2 优先级
+### 7.2 优先级
 
 1. 用户指定参数 > MOSP_database 默认值 > 系统默认值
 2. 用户未指定 → 用 example 的默认值
 3. example 也没 → 用系统预设（pressure=101325Pa, radius=20Å, steps=1000000）
 
-## 7. 气体熵计算系统
+## 8. 气体熵计算系统
 
-### 7.1 公式
+### 8.1 公式
 
 ```
 S(J/K/mol) = a × T^b
@@ -200,7 +292,7 @@ S(eV/K)   = (a × T^b) / 96485
 - `T` 是温度（K）
 - `96485` 是 J→eV 转换因子
 
-### 7.2 8 种气体参数表
+### 8.2 8 种气体参数表
 
 | 气体 | a | b |
 |------|------|------|
@@ -215,7 +307,7 @@ S(eV/K)   = (a × T^b) / 96485
 
 参数通过 0~6000K 范围拟合获得，无温度范围限制。
 
-### 7.3 计算示例
+### 8.3 计算示例
 
 CO 在 473K：
 
@@ -224,46 +316,49 @@ S(J/K/mol) = 85.142 × 473^0.147 ≈ 210.5 J/K/mol
 S(eV/K)   = 210.5 / 96485 ≈ 0.00218 eV/K
 ```
 
-### 7.4 字段对应
+### 8.4 字段对应
 
 | 任务 | 气体熵字段 |
 |------|------------|
 | MSR | `Gas1_S` / `Gas2_S` |
-| KMC | `s1.S_gas` / `s2.S_gas` |
+| RKMC | `s1.S_gas` / `s2.S_gas` |
+| EKMC | `s_i.S_gas` |
 
-> ⚠️ **关键原则**：MSR 和 KMC 的气体熵必须用相同公式、相同值。
+> ⚠️ **关键原则**：MSR、RKMC 和 EKMC 的气体熵必须用相同公式、相同值。
 
-### 7.5 温度修改时必须重算
+### 8.5 温度修改时必须重算
 
-用户在确认阶段选"修改"并改温度 → 必须按 §7.1 重算每个气体的熵值并更新字段。
+用户在确认阶段选"修改"并改温度 → 必须按 §8.1 重算每个气体的熵值并更新字段。
 
 示例：温度从 500K 改 800K
 
 - CO：S(500K) ≈ 0.002200 eV/K → S(800K) ≈ 0.002357 eV/K ✅
 - O₂：S(500K) ≈ 0.002285 eV/K → S(800K) ≈ 0.002446 eV/K ✅
 
-## 8. 温度替换
+## 9. 温度替换
 
 example 文件温度 T_example → 用户温度 T_user：
 
 1. 更新 Temperature = T_user
-2. 按 §7 重算气体熵
+2. 按 §8 重算气体熵
 3. 保持其他参数（表面能、吸附能、w 矩阵等不随温度变化）
 
-## 9. 相互作用参数转换（MSR ↔ KMC）
+## 10. 相互作用参数转换（MSR ↔ KMC）
+
+> ⚠️ **术语说明**：本节中的「KMC 格式」指参数矩阵格式（单原子相邻相互作用），不指任务类型 RKMC/EKMC。这是文献中广泛使用的概念，独立于技能层面的 RKMC/EKMC 区分。
 
 > ⚠️ **重要默认值**：所有文献检索返回的相互作用参数**默认视为 KMC 格式**（单个相邻原子相互作用）。如果用作 MSR 任务参数，自动转换为 MSR 格式，但必须提醒用户检查文献确认是否真的是单原子相互作用。
 
 > **触发条件**：只对文献检索返回的参数触发；MOSP_database 自带参数不处理（假设正确）。
 
-### 9.1 格式定义
+### 10.1 格式定义
 
 | 格式 | 含义 | 数值范围 |
 |------|------|----------|
 | MSR | 满吸附总相互作用能 | 通常 > 0.5 eV（绝对值） |
 | KMC | 单个相邻原子相互作用 | 通常 < 0.3 eV（绝对值） |
 
-### 9.2 默认处理流程（文献参数）
+### 10.2 默认处理流程（文献参数）
 
 1. 文献检索返回参数 → 默认假设为 KMC 格式
 2. 自动转换为 MSR 格式（如需用作 MSR 参数）
@@ -281,7 +376,7 @@ example 文件温度 T_example → 用户温度 T_user：
 - (111) 晶面：× 6
 ```
 
-### 9.3 转换公式
+### 10.3 转换公式
 
 **MSR 参数 = KMC 参数 × 相邻位点数**
 
@@ -291,7 +386,7 @@ example 文件温度 T_example → 用户温度 T_user：
 | (110) | 2 |
 | (111) | 6 |
 
-### 9.4 转换示例（KMC → MSR，自动）
+### 10.4 转换示例（KMC → MSR，自动）
 
 | 晶面 | 原 KMC 值 | 转换后 MSR 值 |
 |------|-----------|---------------|
@@ -299,17 +394,18 @@ example 文件温度 T_example → 用户温度 T_user：
 | (110) | -0.159 | -0.318（×2） |
 | (111) | -0.168 | -1.008（×6） |
 
-### 9.5 转换时机
+### 10.5 转换时机
 
 - **MSR 任务 + 文献参数（默认 KMC 格式）** → 自动转为 MSR + 提醒用户
 - **KMC 任务 + 文献参数（默认 KMC 格式）** → 不转换
+- **EKMC 任务 + 文献参数（默认 KMC 格式）** → 不转换
 - **MOSP_database 自带参数** → 不处理（假设正确）
 
-## 10. 参数完整性处理
+## 11. 参数完整性处理
 
 搜索到 example 后必须做完整性检查：
 
-### 10.1 关键参数缺失（E_ads、w、gamma 等）
+### 11.1 关键参数缺失（E_ads、w、gamma 等）
 
 **步骤 1**：告知用户 "{metal}.json 缺少关键数据（吸附能、相互作用矩阵）"
 
@@ -322,18 +418,20 @@ example 文件温度 T_example → 用户温度 T_user：
 
 **步骤 3**：选项 1/2 → 调用 literature-search；选项 3 → 等用户输入；选项 4 → 结束任务
 
-### 10.2 次要参数缺失（Gas1_S、Gas2_S 等）
+### 11.2 次要参数缺失（Gas1_S、Gas2_S 等）
 
-- 可自动计算（按 §7.1 公式）
+- 可自动计算（按 §8.1 公式）
 - 告知用户"部分参数使用默认值或自动计算"
 
-### 10.3 文献检索后必须重算气体熵
+### 11.3 文献检索后必须重算气体熵
 
-文献检索返回的参数不包含气体熵。无论完整性评分多少，组装 `input.json` 前必须按 §7.1 重算。
+文献检索返回的参数不包含气体熵。无论完整性评分多少，组装 `input.json` 前必须按 §8.1 重算。
 
-## 11. KMC input.json 必含字段
+## 12. RKMC input.json 必含字段
 
-### 11.1 顶层字段
+> ⚠️ **注意**：JSON 字段名 `KMC`、`flag_KMC` 保持不变（引擎兼容）。此处「RKMC」指任务类型，不是 JSON 字段名。
+
+### 12.1 顶层字段
 
 | 字段 | 类型 | 示例 |
 |------|------|------|
@@ -346,7 +444,7 @@ example 文件温度 T_example → 用户温度 T_user：
 | flag_KMC | boolean | true |
 | KMC | object | `{...}` |
 
-### 11.2 KMC 对象内字段
+### 12.2 KMC 对象内字段（引擎字段名不变）
 
 | 字段 | 类型 | 说明 |
 |------|------|------|
@@ -361,7 +459,7 @@ example 文件温度 T_example → 用户温度 T_user：
 | e1 ~ e7 | string | 反应事件 1~7（JSON 字符串） |
 | li | array | 晶格相互作用矩阵 |
 
-## 12. 参数单位速查
+## 13. 参数单位速查
 
 ### MSR 参数
 
@@ -379,7 +477,7 @@ example 文件温度 T_example → 用户温度 T_user：
 | Face.S_ads | eV/K | 吸附熵 |
 | Face.w | eV | 相互作用矩阵元 |
 
-### KMC 参数
+### RKMC 参数
 
 | 字段 | 单位 | 说明 |
 |------|------|------|
@@ -395,35 +493,58 @@ example 文件温度 T_example → 用户温度 T_user：
 | BEP_para | eV | BEP 关系参数 |
 | li | eV | 晶格相互作用矩阵 |
 
-## 13. 错误处理
+### EKMC 参数
+
+| 字段 | 单位 | 说明 |
+|------|------|------|
+| dim_x / dim_y / dim_z | Å | 网格尺寸（默认 = 2×R+20） |
+| nLoop | 步数 | 模拟步数 |
+| record_int | 步数 | 记录间隔 |
+| E_bond | eV | 键能 |
+| Ecoh_U0 | eV | 内聚能基项 |
+| Ecoh_A1/t1 | eV/— | 内聚能指数项 1 |
+| Ecoh_A2/t2 | eV/— | 内聚能指数项 2 |
+| mass | amu | 分子质量 |
+| PP_ratio | % | 分压比例 |
+| S_ads | eV/K | 吸附熵 |
+| S_gas | eV/K | 气体熵 |
+| Ea_diff | eV | 扩散活化能 |
+| sticking | 0-1 | 粘附系数 |
+| E_ads_para | eV | 吸附能参数 |
+| li | eV | 晶格相互作用矩阵 |
+
+## 14. 错误处理
 
 | 情况 | 处理 |
 |------|------|
 | 未找到匹配 example | 调用 literature-search 检索 |
-| 关键参数缺失 | 提示用户并提供 4 个选项（见 §10.1） |
+| 关键参数缺失 | 提示用户并提供 4 个选项（见 §11.1） |
 | 温度未指定 | 默认 500K，但需用户确认 |
 | 压力未指定 | 默认 101325 Pa |
-| 团簇尺寸未指定 | 默认 20 Å（MSR）或 50 Å（KMC） |
-| 步数未指定 | 默认 1000000 |
+| 团簇尺寸未指定 | 默认 20 Å（MSR）或 50 Å（RKMC/EKMC） |
+| 步数未指定 | 默认 1000000（RKMC），10000（EKMC 测试） |
+| EKMC 网格尺寸未指定 | 默认 dim = 2×R+20 |
 | 气体种类与分压不匹配 | 提示用户检查 |
 
-## 14. 跨技能衔接
+## 15. 跨技能衔接
 
 - **input-coordinator → 本技能**：任务识别后路由到本技能
 - **本技能 → literature-search**：参数缺失时调用（详见 literature-search）
 - **本技能 → msr-generator**：用户确认后交付 MSR 参数
-- **本技能 → kmc-simulator**：用户确认后交付 KMC 参数
-- **MSR ↔ KMC 衔接**：MSR 完成后，KMC 独立从 MOSP_database 取参数，不复用 MSR `input.json`
+- **本技能 → kmc-simulator**：用户确认后交付 RKMC 参数
+- **本技能 → ekmc-simulator**：用户确认后交付 EKMC 参数
+- **MSR ↔ RKMC / EKMC 衔接**：MSR 完成后，RKMC/EKMC 独立从 MOSP_database 取参数，不复用 MSR `input.json`
 
-## 15. 依赖
+## 16. 依赖
 
 - **chatmosp-input-coordinator** — 任务入口
 - **chatmosp-literature-search** — 参数缺失时检索
 - **chatmosp-file-organizer** — 获取 MOSP_database 路径
 - **chatmosp-msr-generator** — MSR 计算接收方
-- **chatmosp-kmc-simulator** — KMC 模拟接收方
+- **chatmosp-kmc-simulator** — RKMC 模拟接收方
+- **chatmosp-ekmc-simulator** — EKMC 模拟接收方
 
-## 16. 文件结构
+## 17. 文件结构
 
 ```
 chatmosp-parameter-builder/

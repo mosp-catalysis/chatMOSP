@@ -2,11 +2,11 @@
 name: chatmosp-input-coordinator
 description: |
   Entry skill of the chatMOSP system. Parses Chinese/English natural language input,
-  recognizes three task types (MSR / KMC / parameter query), extracts metal, temperature,
+  recognizes four task types (MSR / RKMC / EKMC / parameter query), extracts metal, temperature,
   gas, partial pressure, steps, and size parameters, then dispatches
-  parameter-builder, file-organizer, msr-generator, and kmc-simulator to complete
+  parameter-builder, file-organizer, msr-generator, kmc-simulator, and ekmc-simulator to complete
   the calculation.
-  Triggers: user requests to run MSR or KMC, queries or adjusts parameters, or
+  Triggers: user requests to run MSR, RKMC, or EKMC, queries or adjusts parameters, or
   describes a metal catalysis system (Pd, Pt, Au, CO oxidation, water-gas shift, etc.).
 ---
 
@@ -15,20 +15,23 @@ description: |
 ## 1. Core Responsibilities
 
 1. Multilingual intent understanding — parse Chinese/English natural language input
-2. Task recognition — identify MSR / KMC / parameter-query task types
+2. Task recognition — identify MSR / RKMC / EKMC / parameter-query task types
 3. Parameter extraction — extract metal, temperature, gas, partial pressure, steps, size
 4. Skill dispatch — chain parameter-builder → file-organizer → calculation engine
 5. Dialogue management — confirmation, clarification, error handling
 
 ## 2. Task Type Recognition
 
-Three supported task types:
+Four supported task types:
 
 | Type | Meaning | Typical keywords |
 |------|---------|------------------|
 | MSR | Metal cluster structure generation | cluster, structure, morphology, nanoparticle, MSR |
-| KMC | Kinetic Monte Carlo simulation | kinetic, simulation, TOF, steps, KMC, Monte Carlo |
+| RKMC | Reaction Kinetic Monte Carlo simulation | reaction kinetics, reaction KMC, TOF, steps, kinetic, simulation, RKMC |
+| EKMC | Environmental Kinetic Monte Carlo (morphology evolution) | EKMC, environmental KMC, morphology evolution |
 | Parameter query | View or adjust parameters | parameter documentation, show parameters, parameter setting |
+
+> **Terminology note**: KMC is now subdivided into RKMC (Reaction KMC — reactivity/TOF) and EKMC (Environmental KMC — morphology evolution/atom migration). When the user says "KMC" without qualification, infer intent from context; if ambiguous, ask whether they want reactivity or morphology evolution.
 
 Confidence threshold: 0.70. Below threshold → actively ask user for clarification.
 
@@ -63,17 +66,20 @@ Confidence threshold: 0.70. Below threshold → actively ask user for clarificat
 
 ```
 MSR task        → parameter-builder → file-organizer → msr-generator
-KMC task        → parameter-builder → file-organizer → kmc-simulator
+RKMC task       → parameter-builder → file-organizer → kmc-simulator
+EKMC task       → parameter-builder → file-organizer → ekmc-simulator
 Parameter query → parameter-builder
 ```
 
 ### 4.2 Cross-skill handoff (MUST follow)
 
-- **MSR → KMC**: After MSR completes, it produces ini.xyz. For KMC, kmc-simulator independently fetches the full KMC parameter set (nspecies, s1/s2, p1, e1-e7, li) from MOSP_database. Do NOT reuse MSR's input.json. See kmc-simulator.
-- **Parameter modification**: If user changes temperature, parameter-builder MUST recalculate gas entropy per §7.5.
+- **MSR → RKMC**: After MSR completes, it produces ini.xyz. For RKMC, kmc-simulator independently fetches the full RKMC parameter set (nspecies, s1/s2, p1, e1-e7, li) from MOSP_database. Do NOT reuse MSR's input.json. See kmc-simulator.
+- **MSR → EKMC**: After MSR completes, it produces ini.xyz. For EKMC, ekmc-simulator independently fetches EKMC parameters (the EKMC section) from MOSP_database. Do NOT reuse MSR's input.json. See ekmc-simulator.
+- **MSR → EKMC → RKMC**: After EKMC completes, it produces final_stru.xyz (evolved structure) which can serve as the initial structure for RKMC. The user may request EKMC morphology evolution first, followed by RKMC reactivity analysis.
+- **Parameter modification**: If user changes temperature, parameter-builder MUST recalculate gas entropy per §8.5.
 - **Missing parameters**: If key parameters (E_ads, w, gamma) are missing, parameter-builder calls literature-search to fill the gap (open-access journals prioritized). See literature-search.
 - **Visualization**: After MSR completes, msr-generator runs utils/paint.py to produce PNG + GIF. See msr-generator.
-- **Wine environment**: KMC tasks are checked and managed by kmc-simulator. See kmc-simulator.
+- **Wine environment**: RKMC / EKMC tasks are checked and managed by kmc-simulator and ekmc-simulator respectively. See their respective skill docs.
 
 ### 4.3 Error handling
 
@@ -89,7 +95,7 @@ Parameter query → parameter-builder
 
 ### 5.1 Task confirmation
 
-After task recognition, MUST confirm with user. Display templates are defined in parameter-builder's "MSR / KMC parameter display format" section.
+After task recognition, MUST confirm with user. Display templates are defined in parameter-builder's "MSR / RKMC / EKMC parameter display format" section.
 
 ### 5.2 Clarification triggers
 
@@ -103,7 +109,8 @@ After task recognition, MUST confirm with user. Display templates are defined in
 - **chatmosp-parameter-builder** — parameter completion + gas entropy calculation
 - **chatmosp-file-organizer** — directory structure creation
 - **chatmosp-msr-generator** — MSR calculation
-- **chatmosp-kmc-simulator** — KMC simulation
+- **chatmosp-kmc-simulator** — RKMC (reaction kinetics) simulation
+- **chatmosp-ekmc-simulator** — EKMC (environmental morphology) simulation
 - **chatmosp-literature-search** — literature search (when parameters missing)
 
 ## 7. File structure

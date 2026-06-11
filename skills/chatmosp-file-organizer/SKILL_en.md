@@ -1,39 +1,38 @@
 ---
 name: chatmosp-file-organizer
 description: |
-  File system manager of the chatMOSP system. Handles MSR / KMC task directory
-  creation, intelligent naming (in `metal_gas-pp_T_K_P_Pa_R_size` format), and
-  secure file operations (path-traversal protection, whitelist restriction).
-  Triggers: after parameter-builder confirms parameters and before calculation
-  engine runs, this skill creates the task directory; or when a KMC task needs
-  to create a subdirectory under an existing MSR task.
+  File system manager of the chatMOSP system. Handles MSR / RKMC / EKMC task directory
+  creation, intelligent naming (format: metal_partial-pressure_TK_PPa_Rsize),
+  safe file operations (path traversal protection, whitelist restrictions).
+  Triggers: after parameter-builder builds parameters and user confirms, creates task
+  directories; or when downstream tasks need subdirectories under parent directories.
 ---
 
 # chatmosp-file-organizer
 
 ## 1. Core Responsibilities
 
-1. **Intelligent task naming** — generate task names per MSR / KMC format
-2. **Standard directory creation** — MSR and KMC standard structures
-3. **Path logic management** — direct KMC vs sequential KMC
-4. **Secure file operations** — path-traversal protection + whitelist
+1. **Intelligent task naming**: generate names for MSR / RKMC / EKMC tasks
+2. **Standard directory creation**: standard structures for MSR, RKMC, and EKMC
+3. **Chain hierarchy management**: three routes — MSR → RKMC, MSR → EKMC, EKMC → RKMC
+4. **Safe file operations**: path traversal protection + whitelist restrictions
 
-## 2. Security-First Principles
+## 2. Security First
 
-- ✅ Path-traversal protection: auto-clean `../`, `//`, `~` and other dangerous chars
+- ✅ Path traversal protection: auto-clean `../`, `//`, `~` and other dangerous chars
 - ✅ Whitelist paths: all operations restricted to `mosp-for-chatMOSP/OUTPUT/`
 - ✅ TaskNameValidator: validates task name legality, supports new naming format
 - ✅ Permission check: ensure appropriate read/write permissions
 
-**Forbidden patterns**: `..`, `//`, `~`, `/root`, `/etc`, `*.exe`, `*.sh`
+Blocked patterns: `..`, `//`, `~`, `/root`, `/etc`, `*.exe`, `*.sh`
 
-**Allowed characters**: `a-zA-Z0-9_-.Å`
+Allowed chars: `a-zA-Z0-9_-.Å`
 
-**Max path length**: 512
+Max path length: 512
 
 ## 3. Task Naming Rules
 
-### 3.1 MSR tasks
+### 3.1 MSR Tasks
 
 **Format**: `{metal}_{gas-pp}_{T}K_{P}Pa_R{size}`
 
@@ -41,107 +40,155 @@ description: |
 
 | Field | Rule | Default |
 |-------|------|---------|
-| Metal | Element symbol (Pd, Pt, Au, ...) | required |
-| Gas pp | Multi-gas joined with `_`, pp follows gas (CO9 = CO 9%) | required |
-| Temperature | Number + K | 500 |
-| Pressure | Number + Pa | 101325 |
-| Size | R + number (Å) | 20 |
+| Metal | Pd, Pt, Au element symbols | Required |
+| Gas partial pressure | Multiple gases joined with `_`, pp follows gas (CO9 = CO 9%) | Required |
+| Temperature | Value + K | 500 |
+| Pressure | Value + Pa | 101325 |
+| Size | R + value (Å) | 20 |
 
-### 3.2 KMC tasks
+### 3.2 RKMC Tasks
 
-**⚠️ IMPORTANT**: KMC task directory MUST be created as a subdirectory under the corresponding MSR task directory.
+> **IMPORTANT**: RKMC task directory is created as a subdirectory under the parent (MSR or EKMC).
 
-**Recommended format**: `KMC_{steps}steps` (concise; T/P already encoded in MSR dir name)
+**Format**: `RKMC_{steps}steps`
 
-**Alternative format**: `KMC_{T}K_{P}Pa_{steps}steps`
+**Example**: `RKMC_5000000steps`
 
-**Examples**:
-- Concise: `KMC_5000000steps`
-- Verbose: `KMC_473K_101325Pa_5000000steps`
+> Temperature/pressure/gas conditions inherit from parent directory. Only annotate when RKMC conditions differ: `RKMC_{T}K_{P}Pa_{pp}_{steps}steps`.
 
-## 4. Directory Structures
+### 3.3 EKMC Tasks
 
-### 4.1 MSR task directory
+> **IMPORTANT**: EKMC task directory is created as a subdirectory under MSR.
+
+**Format** (same conditions): `EKMC_{steps}steps`
+
+**Example**: `EKMC_1000000steps`
+
+**Format** (different conditions): `EKMC_{T}K_{P}Pa_{pp}_{steps}steps`
+
+**Example**: `EKMC_800K_1000Pa_CO100_2000000steps`
+
+> Temperature/pressure/gas conditions inherit from MSR parent. Only annotate in the subdirectory name when conditions differ.
+
+## 4. Directory Structure
+
+### 4.1 MSR Task Directory
 
 ```
 mosp-for-chatMOSP/OUTPUT/{msr_task_name}/
-├── faceinfo.txt            # Facet information
-├── ini.xyz                 # Real cluster (KMC input)
+├── faceinfo.txt            # Facet info
+├── ini.xyz                 # Real cluster (input for RKMC/EKMC)
 ├── {task_name}_cluster.xyz # Structure for plotting
 ├── rotation.gif            # Rotation animation
 ├── structure.png           # Structure image
-├── parameter_analysis.md   # Parameter analysis
-├── paint.py                # Plotting script
 ├── input.json              # MSR parameter file
 └── metadata.json           # Task metadata
 ```
 
-### 4.2 KMC task directory (under MSR directory)
+### 4.2 RKMC Task Directory (MSR → RKMC direct)
 
 ```
 mosp-for-chatMOSP/OUTPUT/{msr_task_name}/
-└── KMC_{steps}steps/
-    ├── input.json          # KMC params (required)
+└── RKMC_{steps}steps/
+    ├── input.json          # RKMC params (independent)
     ├── ini.xyz             # Copied from MSR
-    ├── coverage.csv        # Coverage data
     ├── coverage.png        # Coverage vs Time
     ├── coverage_steps.png  # Coverage vs Steps
-    ├── run.log             # Run log
-    ├── site_tof.csv        # Site TOF
-    ├── tof.csv             # TOF data
     ├── tof.png             # TOF vs Time
     ├── tof_time.png        # TOF vs Steps
-    ├── INPUT/              # KMC auto-fills
-    │   ├── events.txt
-    │   ├── input.txt
-    │   ├── LI.txt
-    │   ├── products.txt
-    │   └── species.txt
-    └── OUTPUT/             # KMC auto-output
+    ├── INPUT/              # Engine auto-fills
+    └── OUTPUT/             # Engine auto-outputs
         ├── rec_cov.data
         ├── rec_event.data
         └── rec_site_spc.data
 ```
 
-## 5. Path Logic
+### 4.3 EKMC Task Directory (MSR → EKMC)
 
-### 5.1 MSR task path
+```
+mosp-for-chatMOSP/OUTPUT/{msr_task_name}/
+└── EKMC_{steps}steps/                    ← EKMC task directory
+    ├── input.json                        ← EKMC params (independent)
+    ├── ini.xyz                           ← Copied from MSR
+    ├── coverage.png
+    ├── events.png
+    ├── migration.png
+    ├── structure_cov.png/.gif + structure_cov_legend.png
+    ├── structure_cn.png/.gif  + structure_cn_colorbar.png
+    ├── structure_gcn.png/.gif + structure_gcn_colorbar.png
+    ├── EKMC-INPUT/                       ← Engine working dir
+    └── EKMC-OUTPUT/                      ← Engine raw output
+        ├── rec_cov.data
+        ├── rec_event.data
+        ├── final_stru.xyz                ← Evolved structure (for RKMC)
+        └── migration_infos.data
+```
+
+### 4.4 EKMC → RKMC Chain Directory (nested)
+
+```
+mosp-for-chatMOSP/OUTPUT/{msr_task_name}/
+└── EKMC_{steps}steps/
+    ├── ... (EKMC files, same as above)
+    └── RKMC_{steps}steps/                 ← RKMC nested under EKMC
+        ├── input.json                    ← RKMC params (independent)
+        ├── ini.xyz                       ← Copied from EKMC-OUTPUT/final_stru.xyz
+        ├── coverage.png / coverage_steps.png
+        ├── tof.png / tof_time.png
+        ├── INPUT/
+        └── OUTPUT/
+```
+
+> ⚠️ **Design principle**: RKMC nested under EKMC = RKMC uses EKMC's evolved structure. Sibling = parallel experiment (no dependency).
+
+## 5. Path Logic (Three Routes)
+
+```
+ROUTE 1: MSR → RKMC (reactivity)
+  OUTPUT/{msr}/RKMC_{steps}/
+  ini.xyz source: MSR's ini.xyz
+
+ROUTE 2: MSR → EKMC (morphology)
+  OUTPUT/{msr}/EKMC_{steps}/
+  ini.xyz source: MSR's ini.xyz
+
+ROUTE 3: MSR → EKMC → RKMC (evolve then analyze)
+  OUTPUT/{msr}/EKMC_{steps}/RKMC_{steps}/
+  ini.xyz source: EKMC's EKMC-OUTPUT/final_stru.xyz
+```
+
+### 5.1 MSR Task Path
 
 - Location: `mosp-for-chatMOSP/OUTPUT/{msr_task_name}/`
 - MSR generates `ini.xyz` and `{task_name}_cluster.xyz`
-- **DO NOT** prepare `ini.xyz` for MSR (MSR generates it)
+- Do NOT prepare `ini.xyz` for MSR (MSR generates it)
 
-### 5.2 KMC task path (two modes)
+### 5.2 Condition Inheritance
 
-**Mode 1: Direct KMC** (no corresponding MSR, copy from MOSP_database)
+Subdirectory (RKMC / EKMC) naming follows **condition inheritance**:
+- Same T/P/pp as parent → short name (`RKMC_{steps}steps` / `EKMC_{steps}steps`)
+- Different conditions → annotate differences in subdirectory name
+- Missing context resolved by tracing up to parent directory name
 
-- Location: `mosp-for-chatMOSP/OUTPUT/{kmc_task_name}/`
-- Use when: no MSR result available
-
-**Mode 2: Sequential KMC** (use MSR-generated ini.xyz, **recommended**)
-
-- Location: `mosp-for-chatMOSP/OUTPUT/{msr_task_name}/{kmc_task_name}/`
-- Use when: MSR result available
-
-**Prefer Mode 2** for cluster consistency.
-
-## 6. Visualization Commands (for MSR)
+## 6. Visualization Commands (MSR)
 
 ```bash
 # Static structure image
-python3 utils/paint.py OUTPUT/{task_name}/{task_name}_cluster.xyz \
+cd mosp-for-chatMOSP && python3 utils/paint.py \
+  OUTPUT/{task_name}/{task_name}_cluster.xyz \
   --output OUTPUT/{task_name}/structure.png
 
 # Rotation animation
-python3 utils/paint.py OUTPUT/{task_name}/{task_name}_cluster.xyz \
+cd mosp-for-chatMOSP && python3 utils/paint.py \
+  OUTPUT/{task_name}/{task_name}_cluster.xyz \
   --gif OUTPUT/{task_name}/rotation.gif
 ```
 
-See msr-generator §5.3 for details.
+See msr-generator §5 (Step 3: Generate visualization).
 
-## 7. API Examples
+## 7. Interface Examples
 
-### Create MSR directory
+### Create MSR Directory
 
 **Input**:
 
@@ -169,27 +216,22 @@ See msr-generator §5.3 for details.
   "directory_path": "mosp-for-chatMOSP/OUTPUT/Pd_CO9_O18_473K_101325Pa_R50",
   "standard_files": [
     "faceinfo.txt", "ini.xyz", "{task_name}_cluster.xyz",
-    "rotation.gif", "structure.png", "parameter_analysis.md",
-    "paint.py", "input.json", "metadata.json"
+    "rotation.gif", "structure.png", "input.json", "metadata.json"
   ]
 }
 ```
 
-### Create KMC directory
+### Create RKMC Directory
 
 **Input**:
 
 ```json
 {
-  "action": "create_kmc_directory",
+  "action": "create_rkmc_directory",
   "parameters": {
-    "metal": "Pd",
-    "temperature": "473",
-    "gases": ["CO", "O2"],
-    "partial_pressures": {"CO": 9, "O2": 18},
-    "pressure": "101325",
-    "steps": "200000000",
-    "parent_msr_task": null
+    "steps": "5000000",
+    "parent_task": "Pd_CO9_O18_473K_101325Pa_R50",
+    "parent_type": "MSR"
   }
 }
 ```
@@ -199,40 +241,112 @@ See msr-generator §5.3 for details.
 ```json
 {
   "success": true,
-  "task_type": "KMC",
-  "task_name": "Pd_CO9_O18_473K_101325Pa_200000000steps",
-  "directory_path": "mosp-for-chatMOSP/OUTPUT/Pd_CO9_O18_473K_101325Pa_200000000steps",
+  "task_type": "RKMC",
+  "task_name": "RKMC_5000000steps",
+  "directory_path": "mosp-for-chatMOSP/OUTPUT/Pd_CO9_O18_473K_101325Pa_R50/RKMC_5000000steps",
   "required_files": ["input.json", "ini.xyz"],
   "empty_directories": ["INPUT", "OUTPUT"],
-  "output_files": ["coverage.csv", "coverage.png", "coverage_steps.png", "run.log", "site_tof.csv", "tof.csv", "tof.png", "tof_time.png"]
+  "output_files": ["coverage.png", "coverage_steps.png", "tof.png", "tof_time.png"]
 }
 ```
 
-## 8. Error Handling
+### Create EKMC Directory
+
+**Input**:
+
+```json
+{
+  "action": "create_ekmc_directory",
+  "parameters": {
+    "steps": "1000000",
+    "parent_task": "Pd_CO9_O18_473K_101325Pa_R50",
+    "temperature_override": null,
+    "pressure_override": null
+  }
+}
+```
+
+> Non-null `temperature_override` / `pressure_override` appends condition annotation to subdirectory name.
+
+**Output**:
+
+```json
+{
+  "success": true,
+  "task_type": "EKMC",
+  "task_name": "EKMC_1000000steps",
+  "directory_path": "mosp-for-chatMOSP/OUTPUT/Pd_CO9_O18_473K_101325Pa_R50/EKMC_1000000steps",
+  "required_files": ["input.json", "ini.xyz"],
+  "empty_directories": ["EKMC-INPUT", "EKMC-OUTPUT"],
+  "output_files": ["coverage.png", "events.png", "migration.png", "structure_cov.png", "structure_cn.png", "structure_gcn.png"]
+}
+```
+
+### Create EKMC → RKMC Chain Directory
+
+**Input**:
+
+```json
+{
+  "action": "create_rkmc_directory",
+  "parameters": {
+    "steps": "2000000",
+    "parent_task": "Pd_CO9_O18_473K_101325Pa_R50/EKMC_1000000steps",
+    "parent_type": "EKMC"
+  }
+}
+```
+
+**Output**:
+
+```json
+{
+  "success": true,
+  "task_type": "RKMC",
+  "parent_type": "EKMC",
+  "task_name": "RKMC_2000000steps",
+  "directory_path": "mosp-for-chatMOSP/OUTPUT/Pd_CO9_O18_473K_101325Pa_R50/EKMC_1000000steps/RKMC_2000000steps",
+  "ini_source": "EKMC-OUTPUT/final_stru.xyz"
+}
+```
+
+## 8. Route Summary
+
+| Route | Directory Path | ini.xyz Source |
+|-------|---------------|----------------|
+| MSR → RKMC | `{msr}/RKMC_{steps}/` | MSR `ini.xyz` |
+| MSR → EKMC | `{msr}/EKMC_{steps}/` | MSR `ini.xyz` |
+| MSR → EKMC → RKMC | `{msr}/EKMC_{steps}/RKMC_{steps}/` | EKMC `final_stru.xyz` |
+
+## 9. Error Handling
 
 | Error | Action |
 |-------|--------|
-| Path traversal (`../`) | Reject operation, return error |
-| Illegal characters in name | TaskNameValidator rejects |
+| Path traversal (../) | Reject, return error |
+| Illegal characters in task name | TaskNameValidator rejects |
 | Directory exists | Ask before overwriting |
 | Insufficient permissions | Prompt user to check |
-| Path outside whitelist | Reject operation |
+| Path outside whitelist | Reject |
+| Parent directory missing | Prompt to create parent first |
+| Nested too deep | Limit to max 2 levels (MSR → EKMC → RKMC) |
 
-## 9. Cross-Skill Handoff
+## 10. Cross-Skill Handoff
 
-- **parameter-builder → this skill**: called after parameter confirmation
-- **this skill → msr-generator**: after MSR directory creation
-- **this skill → kmc-simulator**: after KMC directory creation
-- **msr-generator → this skill**: for KMC subdirectory creation after MSR
+- **parameter-builder → this skill**: create directory after parameter confirmation
+- **this skill → msr-generator**: invoke MSR after directory creation
+- **this skill → kmc-simulator**: invoke RKMC after directory creation
+- **this skill → ekmc-simulator**: invoke EKMC after directory creation
+- **ekmc-simulator → this skill**: after EKMC completes, if user wants RKMC, create nested RKMC subdirectory under EKMC
 
-## 10. Dependencies
+## 11. Dependencies
 
 - **chatmosp-parameter-builder** — get task parameters
-- **chatmosp-input-coordinator** — get task type
+- **chatmosp-input-coordinator** — get task type and route
 - **chatmosp-msr-generator** — MSR calculation receiver
-- **chatmosp-kmc-simulator** — KMC simulation receiver
+- **chatmosp-kmc-simulator** — RKMC simulation receiver
+- **chatmosp-ekmc-simulator** — EKMC simulation receiver
 
-## 11. File Structure
+## 12. File Structure
 
 ```
 chatmosp-file-organizer/

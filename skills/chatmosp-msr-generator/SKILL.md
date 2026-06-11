@@ -2,8 +2,8 @@
 name: chatmosp-msr-generator
 description: |
   chatMOSP 系统的 MSR（多尺度结构重构）计算引擎。调用 mosp-for-chatMOSP/utils/msr.py
-  执行金属团簇结构生成计算（基于 Wulff 构造），产出 ini.xyz 和 {task_name}_cluster.xyz，
-  并自动生成 PNG 结构图和 GIF 旋转动画，最后通过飞书发送给用户。
+  执行金属团簇结构生成计算（基于 Wulff 构造），产出 ini.xyz 和 {task_name}_cluster.xyz
+  （可供 EKMC 或 RKMC 后续使用），并自动生成 PNG 结构图和 GIF 旋转动画，最后通过飞书发送给用户。
   触发场景：parameter-builder 完成参数构建并经用户确认后，由本技能执行 MSR 计算。
 ---
 
@@ -45,7 +45,7 @@ description: |
 | Radius | 团簇半径（Å） |
 | nFaces / Face1 / Face2 / Face3 | 晶面参数 |
 
-气体熵（`Gas1_S` / `Gas2_S`）由 parameter-builder 按 §7.1 公式计算，**不要手动填写或直接复用 example 的值**。
+气体熵（`Gas1_S` / `Gas2_S`）由 parameter-builder 按 §8.1 公式计算，**不要手动填写或直接复用 example 的值**。
 
 ## 4. 大尺寸团簇警告
 
@@ -121,7 +121,7 @@ cd mosp-for-chatMOSP && python3 utils/paint.py \
 
 | 文件 | 说明 |
 |------|------|
-| ini.xyz | 真实团簇结构（包含所有原子），KMC 计算的输入 |
+| ini.xyz | 真实团簇结构（包含所有原子），RKMC 或 EKMC 计算的输入 |
 | {task_name}_cluster.xyz | 表面原子已分类的绘图用结构文件 |
 | faceinfo.txt | 晶面信息统计 |
 | input.json | MSR 参数文件 |
@@ -130,8 +130,9 @@ cd mosp-for-chatMOSP && python3 utils/paint.py \
 
 ## 7. 关键原则
 
-- MSR `input.json` 不含 KMC 参数——KMC 参数由 kmc-simulator 独立准备
+- MSR `input.json` 不含 RKMC/EKMC 参数——RKMC 参数由 kmc-simulator 独立准备，EKMC 参数由 ekmc-simulator 独立准备，均不复用 MSR input.json
 - `ini.xyz` 是 MSR 的**输出**，不是输入——不要为 MSR 任务准备 `ini.xyz`
+- `ini.xyz` 是下游计算的通用输入：RKMC（反应活性）直接使用，EKMC（形貌演化）也使用同一份
 - 不要直接复制 `MOSP_database` 的 example 文件——必须用 parameter-builder 重新计算气体熵
 
 ## 8. 错误处理
@@ -145,7 +146,9 @@ cd mosp-for-chatMOSP && python3 utils/paint.py \
 
 ## 9. 跨技能衔接
 
-- **MSR → KMC**：MSR 完成后产出 `ini.xyz`。KMC 任务由 kmc-simulator 独立从 MOSP_database 取 KMC 完整参数，不复用本技能的 `input.json`。详见 kmc-simulator。
+- **MSR → RKMC**：MSR 完成后产出 `ini.xyz`。RKMC 任务由 kmc-simulator 独立从 MOSP_database 取完整 RKMC 参数（KMC section），不复用本技能的 `input.json`。详见 kmc-simulator。
+- **MSR → EKMC**：MSR 完成后产出 `ini.xyz`。EKMC 任务由 ekmc-simulator 独立从 MOSP_database 取 EKMC 参数（EKMC section），不复用本技能的 `input.json`。详见 ekmc-simulator。
+- **MSR → EKMC → RKMC**：MSR 产出 ini.xyz → EKMC 演化形貌产出 final_stru.xyz → RKMC 分析反应活性。整条链由 input-coordinator 调度。
 - **MSR 失败 → parameter-builder**：参数问题回到 parameter-builder 调整。
 - **重复执行 MSR**：如目录已存在，询问用户是否覆盖。
 
@@ -155,6 +158,8 @@ cd mosp-for-chatMOSP && python3 utils/paint.py \
 - **chatmosp-parameter-builder** — 参数构建与气体熵计算
 - **chatmosp-file-organizer** — 目录结构
 - **chatmosp-input-coordinator** — 任务入口
+- **chatmosp-kmc-simulator** — RKMC（下游，消耗 ini.xyz）
+- **chatmosp-ekmc-simulator** — EKMC（下游，消耗 ini.xyz）
 
 ## 11. 文件结构
 

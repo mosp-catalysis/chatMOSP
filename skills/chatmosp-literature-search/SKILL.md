@@ -3,7 +3,7 @@ name: chatmosp-literature-search
 description: |
   chatMOSP 系统的学术文献检索器。当 MOSP_database 缺少匹配参数时，从开放获取期刊
   （Nature Communications、Science Advances、PNAS 等）和其他学术资源搜索并提取
-  MSR/KMC 所需参数（表面能、吸附能、相互作用矩阵等）。
+  MSR/RKMC/EKMC 所需参数（表面能、吸附能、相互作用矩阵、扩散能垒、内聚能等）。
   触发场景：parameter-builder 检测到关键参数缺失，且用户选择通过文献检索补全时。
 ---
 
@@ -44,9 +44,10 @@ description: |
 | 吸附能 | 各晶面 + 各气体的 E_ads（eV） |
 | 相互作用矩阵 | CO-CO、CO-O、O-O 的 w（eV） |
 | 参数来源 | DOI、文献标题、作者 |
+| EKMC 参数 | E_bond、Ecoh、Ea_diff 等（扩散/内聚参数） |
 | 完整性评分 | 1-10 分 |
 
-> **⚠️ 文献搜索不返回气体熵**。返回后 parameter-builder 必须按 §3.1 公式重算。
+> **⚠️ 文献搜索不返回气体熵**。返回后 parameter-builder 必须按 parameter-builder §8.1 公式重算。
 
 ## 4. 工作流程
 
@@ -84,7 +85,7 @@ description: |
 
 ## 6. 工具选择
 
-### 6.1 优先用 openclaw_browser
+### 6.1 优先用 browser
 
 - ✅ 支持 JS 渲染
 - ✅ 支持登录态
@@ -99,7 +100,7 @@ description: |
 
 ### 6.3 降级
 
-如果 openclaw_browser 不可用 → 试 opencli CLI → 详见 `web-tools-guide`
+如果 browser 不可用 → 试 opencli CLI → 详见 `web-tools-guide`
 
 ## 7. 详细文献检索流程
 
@@ -127,7 +128,7 @@ Pd CO oxidation
 
 ### 步骤 2：访问期刊网站
 
-- 用 openclaw_browser 进入期刊搜索页
+- 用 browser 进入期刊搜索页
 - 输入关键词
 - 默认按相关性排序
 
@@ -177,7 +178,7 @@ Pd CO oxidation
 **步骤 7.1**：下载 SI
 
 ```bash
-# 用 openclaw_browser 访问文章页下载 SI
+# 用 browser 访问文章页下载 SI
 ```
 
 **步骤 7.2**：PDF 转文本
@@ -238,44 +239,54 @@ pdftotext si_{author}_{year}.pdf si_{author}_{year}.txt
 
 > ⚠️ **重要**：正文没提到参数不代表 SI 没有。如果文章相关性高，仍要下载 SI 检查。
 
-## 9. MSR 需求的数据清单
+## 9. 各任务类型需求的数据清单
 
-### 基本参数
+### 9.1 MSR 需求
 
+#### 基本参数
 - ✅ 金属元素、温度、压力
 - ✅ 团簇半径、气体种类、气体分压
 
-### 表面参数（每个晶面）
-
+#### 表面参数（每个晶面）
 - ✅ 表面能 γ（eV/Å²）：(100)、(110)、(111)、(211)、(311) 等
 
-### 吸附参数（每个晶面 + 每种气体）
-
+#### 吸附参数（每个晶面 + 每种气体）
 - ✅ 吸附能 E_ads（eV）：例 CO 在 Pd(111)、O₂ 在 Pd(100)
 
-### 相互作用参数
-
+#### 相互作用参数
 - ✅ w 矩阵（eV）：CO-CO、CO-O、O-O
 
-### 气体参数
+### 9.2 RKMC 额外需求（在 MSR 基础上）
+- ✅ 反应事件参数（活化能、指前因子）
+- ✅ 产物定义
+- ✅ BEP 关系参数
+- ✅ 扩散能垒（Ea_diff）
 
+### 9.3 EKMC 额外需求（在 MSR 基础上）
+- ✅ 键能（E_bond）
+- ✅ 内聚能参数（Ecoh_U0, Ecoh_A1/t1, Ecoh_A2/t2）
+- ✅ 扩散能垒（Ea_diff）
+- ✅ 粘附系数（sticking）
+
+### 9.4 气体参数
 - ✅ 气体熵（eV/K）：可通过公式计算（温度依赖）或从文献提取
 
 > ⚠️ 文献搜索不返回气体熵，parameter-builder 必须自动计算
 
 ## 10. 参数完整性评分
 
-### 分值表
+### 10.1 评分维度
 
 | 参数类型 | 分值 | 说明 |
 |----------|------|------|
 | 表面能 | 2 分 | 至少 (100)、(110)、(111) 三个晶面 |
-| 吸附能 | 3 分 | 每种气体在各晶面 |
-| 相互作用矩阵 | 3 分 | CO-CO、CO-O、O-O |
+| 吸附能 | 2 分 | 每种气体在各晶面 |
+| 相互作用矩阵 | 2 分 | CO-CO、CO-O、O-O |
+| RKMC/EKMC 专用参数 | 2 分 | E_bond、Ecoh、Ea_diff、BEP 等 |
 | 参数来源 | 1 分 | DOI、标题、作者 |
 | 参数合理性 | 1 分 | 在合理范围内、符合物理规律 |
 
-### 等级处理
+### 10.2 等级处理
 
 | 评分 | 等级 | 处理 |
 |------|------|------|
@@ -344,13 +355,13 @@ pdftotext si_{author}_{year}.pdf si_{author}_{year}.txt
 ## 13. 跨技能衔接
 
 - **被调用**：parameter-builder 检测到关键参数缺失 + 用户选文献检索
-- **调用工具**：openclaw_browser、pdftotext、read
-- **返回给 parameter-builder**：带评分的参数表
+- **调用工具**：browser、pdftotext、read
+- **返回给 parameter-builder**：带评分的参数表（含 EKMC 类型参数）
 
 ## 14. 依赖
 
 - **chatmosp-parameter-builder** — 调用方
-- **openclaw_browser** — 期刊网站访问、SI 下载
+- **browser** — 期刊网站访问、SI 下载
 - **pdftotext** — PDF 转文本
 - **read** — 读取文本文件
 
@@ -373,7 +384,7 @@ chatmosp-literature-search/
 4. 启动本技能：
    - 平台：Nature Communications
    - 关键词：`"Pd" AND "CO oxidation" AND "adsorption energy"`
-   - 工具：openclaw_browser
+   - 工具：browser
 5. 找到相关文章，确认 DOI
 6. 下载 SI → 保存到 literature/
 7. pdftotext 转换 → 搜 "Supplementary Table" → 提取参数
@@ -384,5 +395,6 @@ chatmosp-literature-search/
 关键点：
 - 始终从开放获取期刊开始
 - 文献搜索不返回气体熵，parameter-builder 必须重算
-- 相互作用参数可能是 KMC 格式，需 MSR/KMC 格式转换（见 parameter-builder §9）
+- 相互作用参数可能是 KMC 格式，需 MSR/KMC 格式转换（见 parameter-builder §10）
+- EKMC 所需参数（E_bond、Ecoh、Ea_diff）也通过文献检索获取
 ```

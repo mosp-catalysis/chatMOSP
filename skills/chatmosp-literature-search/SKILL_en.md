@@ -3,8 +3,9 @@ name: chatmosp-literature-search
 description: |
   Academic literature searcher of the chatMOSP system. When MOSP_database lacks
   matching parameters, searches open-access journals (Nature Communications,
-  Science Advances, PNAS, etc.) and other academic resources to extract MSR/KMC
-  parameters (surface energy, adsorption energy, interaction matrix, etc.).
+  Science Advances, PNAS, etc.) and other academic resources to extract MSR/RKMC/EKMC
+  parameters (surface energy, adsorption energy, interaction matrix, diffusion
+  barriers, cohesive energy, etc.).
   Triggers: parameter-builder detects missing key parameters and the user chooses
   literature search for completion.
 ---
@@ -38,6 +39,7 @@ Return parameter table (JSON), containing:
 | Adsorption energy | E_ads (eV) for each facet + each gas |
 | Interaction matrix | w (eV) for CO-CO, CO-O, O-O |
 | Parameter source | DOI, article title, authors |
+| EKMC parameters | E_bond, Ecoh, Ea_diff, etc. (diffusion/cohesive params) |
 | Completeness score | 1-10 |
 
 > **⚠️ Literature search does NOT return gas entropy.** parameter-builder MUST recalculate it using the §3.1 formula after receiving the result.
@@ -335,7 +337,7 @@ Please select:
 
 - **Called by**: parameter-builder when key parameters missing + user chooses lit search
 - **Calls tools**: `openclaw_browser`, `pdftotext`, `read`
-- **Returns to parameter-builder**: parameter table with score
+- **Returns to parameter-builder**: parameter table with score (including EKMC-type params)
 
 ## 14. Dependencies
 
@@ -374,5 +376,6 @@ User: show me the Pd cluster under atmosphere of CO and O2
 Key points:
 - Always start with open-access journals
 - Literature search does NOT return gas entropy; parameter-builder MUST recalculate
-- Interaction parameters may be in KMC format; need MSR/KMC format conversion (see parameter-builder §9)
+- Interaction parameters may be in KMC format; need MSR/KMC format conversion (see parameter-builder §10)
+- EKMC parameters (E_bond, Ecoh, Ea_diff) are also obtained via literature search
 ```

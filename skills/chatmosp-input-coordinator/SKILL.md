@@ -1,11 +1,11 @@
 ---
 name: chatmosp-input-coordinator
 description: |
-  chatMOSP 系统的入口技能。负责解析中英文自然语言输入，识别 MSR/KMC/参数查询
-  三种任务类型，提取金属/温度/气体/分压/步数/尺寸等参数，并调度
-  parameter-builder、file-organizer、msr-generator、kmc-simulator
+  chatMOSP 系统的入口技能。负责解析中英文自然语言输入，识别 MSR / RKMC / EKMC /
+  参数查询 四种任务类型，提取金属/温度/气体/分压/步数/尺寸等参数，并调度
+  parameter-builder、file-organizer、msr-generator、kmc-simulator、ekmc-simulator
   完成计算。
-  触发场景：用户请求运行 MSR 或 KMC 计算、查询参数、调整参数、或描述金属催化
+  触发场景：用户请求运行 MSR、RKMC、EKMC 计算、查询参数、调整参数、或描述金属催化
   反应体系（Pd、Pt、Au、CO 氧化、水汽变换等）。
 ---
 
@@ -22,20 +22,23 @@ description: |
 ## 1. 核心职责
 
 1. 多语言意图理解：解析中英文自然语言输入
-2. 任务识别：识别 MSR / KMC / 参数查询 三种任务类型
+2. 任务识别：识别 MSR / RKMC / EKMC / 参数查询 四种任务类型
 3. 参数提取：从输入中提取金属、温度、气体、分压、步数、尺寸等
 4. 技能调度：按路由表串起 parameter-builder → file-organizer → 计算引擎
 5. 对话管理：确认、澄清、错误处理
 
 ## 2. 任务类型识别
 
-支持三种任务：
+支持四种任务：
 
 | 类型 | 含义 | 典型关键词 |
 |------|------|------------|
 | MSR | 金属团簇结构生成 | 团簇、结构、形貌、纳米颗粒、cluster、structure、morphology、MSR |
-| KMC | 反应动力学蒙特卡洛模拟 | 动力学、模拟、TOF、步数、kinetic、simulation、KMC、Monte Carlo |
+| RKMC | 反应动力学蒙特卡洛模拟 | 反应动力学、反应KMC、TOF、步数、kinetic、simulation、RKMC、Reaction KMC |
+| EKMC | 环境动力学蒙特卡洛模拟（形貌演化） | 环境KMC、形貌演化、EKMC、environmental、morphology evolution |
 | 参数查询 | 查看/调整参数 | 查询、参数、设置、调整、parameter documentation、show parameters |
+
+> **术语说明**：KMC 现在细分为 RKMC（反应 KMC，关注反应活性/TOF）和 EKMC（环境 KMC，关注形貌演化/原子迁移）。用户只说"KMC"时，根据上下文判断意图；若模糊则询问用户是反应活性还是形貌演化。
 
 置信度阈值 0.70。低于阈值时主动询问用户意图。
 
@@ -69,18 +72,21 @@ description: |
 ### 4.1 路由表
 
 ```
-MSR 任务  → parameter-builder → file-organizer → msr-generator
-KMC 任务  → parameter-builder → file-organizer → kmc-simulator
-参数查询  → parameter-builder
+MSR 任务   → parameter-builder → file-organizer → msr-generator
+RKMC 任务  → parameter-builder → file-organizer → kmc-simulator
+EKMC 任务  → parameter-builder → file-organizer → ekmc-simulator
+参数查询   → parameter-builder
 ```
 
 ### 4.2 跨技能衔接（必须遵守）
 
-- **MSR → KMC**：MSR 完成后产出 ini.xyz。KMC 由 kmc-simulator 独立从 MOSP_database 取完整 KMC 参数（nspecies、s1/s2、p1、e1-e7、li 全套），不复用 MSR 的 input.json。详见 kmc-simulator。
-- **参数修改时**：用户改温度 → parameter-builder 必须按 §7.5 重算气体熵。
+- **MSR → RKMC**：MSR 完成后产出 ini.xyz。RKMC 由 kmc-simulator 独立从 MOSP_database 取完整 RKMC 参数（nspecies、s1/s2、p1、e1-e7、li 全套），不复用 MSR 的 input.json。详见 kmc-simulator。
+- **MSR → EKMC**：MSR 完成后产出 ini.xyz。EKMC 由 ekmc-simulator 独立从 MOSP_database 取 EKMC 参数（EKMC section），不复用 MSR 的 input.json。详见 ekmc-simulator。
+- **MSR → EKMC → RKMC**：EKMC 运行结束后产出 final_stru.xyz（演化后结构），可作为 RKMC 的初始结构。用户可要求先 EKMC 演化形貌，再 RKMC 分析反应活性。
+- **参数修改时**：用户改温度 → parameter-builder 必须按 §8.5 重算气体熵。
 - **参数缺失时**：关键参数（E_ads、w、gamma）缺 → parameter-builder 调用 literature-search 补全（开放获取期刊优先）。详见 literature-search。
 - **可视化**：MSR 完成后由 msr-generator 调 utils/paint.py 生成 PNG + GIF。详见 msr-generator。
-- **Wine 环境**：KMC 任务由 kmc-simulator 负责检查和管理。详见 kmc-simulator。
+- **Wine 环境**：RKMC / EKMC 任务分别由 kmc-simulator 和 ekmc-simulator 负责检查和管理。详见各自技能。
 
 ### 4.3 错误处理
 
@@ -96,7 +102,7 @@ KMC 任务  → parameter-builder → file-organizer → kmc-simulator
 
 ### 5.1 任务确认
 
-识别任务后，必须向用户确认。展示模板见 parameter-builder 的「MSR / KMC 参数展示格式」章节。
+识别任务后，必须向用户确认。展示模板见 parameter-builder 的「MSR / RKMC / EKMC 参数展示格式」章节。
 
 ### 5.2 澄清触发
 
@@ -110,7 +116,8 @@ KMC 任务  → parameter-builder → file-organizer → kmc-simulator
 - **chatmosp-parameter-builder** — 参数补全 + 气体熵计算
 - **chatmosp-file-organizer** — 目录结构创建
 - **chatmosp-msr-generator** — MSR 计算
-- **chatmosp-kmc-simulator** — KMC 模拟
+- **chatmosp-kmc-simulator** — RKMC（反应动力学）模拟
+- **chatmosp-ekmc-simulator** — EKMC（环境形貌）模拟
 - **chatmosp-literature-search** — 文献检索（参数缺失时）
 
 ## 7. 文件结构
